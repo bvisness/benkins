@@ -2,8 +2,9 @@ package server
 
 import (
 	"fmt"
-	"os"
 	"io/ioutil"
+	"net"
+	"os"
 	"path/filepath"
 
 	git "gopkg.in/src-d/go-git.v4"
@@ -13,40 +14,60 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
-type ProjectConfig struct {
+type Project struct {
 	URL string `toml:"url"`
 }
 
 type ServerConfig struct {
-	Projects map[string]ProjectConfig `toml:"projects"`
+	Projects map[string]Project `toml:"projects"`
 }
 
 type CIConfig struct {
-	Stages []struct{
-		Name string `yaml:"name"`
+	Stages []struct {
+		Name string  `yaml:"name"`
 		Jobs []CIJob `yaml:"jobs"`
 	} `yaml:"stages"`
 }
 
 type CIJob struct {
-	Name string `yaml:"name"`
+	Name   string   `yaml:"name"`
 	Script []string `yaml:"script"`
 }
 
 func Boot(config ServerConfig) {
 	for name, project := range config.Projects {
 		fmt.Printf("%s: %s\n", name, project.URL)
+	}
 
-		GetCIConfig(project, "")
+	ln, _ := net.Listen("tcp", ":8080")
+	for {
+		conn, _ := ln.Accept()
+
+		buf := make([]byte, 16)
+		reqLen, err := conn.Read(buf)
+
+		if err != nil {
+			fmt.Println("Error reading:", err.Error())
+		}
+
+		fmt.Print(string(buf))
+
+		conn.Write([]byte(fmt.Sprintf("Message received: %d bytes.\n", reqLen)))
+
+		conn.Close()
 	}
 }
 
-func GetCIConfig(p ProjectConfig, hash string) (CIConfig, error) {
+func RunJob(project Project) {
+	GetCIConfig(project, "")
+}
+
+func GetCIConfig(p Project, hash string) (CIConfig, error) {
 	tmpdir, _ := ioutil.TempDir("", "project")
 	defer os.RemoveAll(tmpdir)
 
 	r, _ := git.PlainClone(tmpdir, false, &git.CloneOptions{
-		URL: p.URL,
+		URL:      p.URL,
 		Progress: os.Stdout,
 	})
 
