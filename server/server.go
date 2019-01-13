@@ -3,15 +3,13 @@ package server
 import (
 	"fmt"
 	"io/ioutil"
-	"net"
 	"os"
 	"path/filepath"
 
 	git "gopkg.in/src-d/go-git.v4"
-	// "gopkg.in/src-d/go-git.v4/storage/memory"
+
 	"gopkg.in/src-d/go-git.v4/plumbing"
-	// "gopkg.in/src-d/go-git.v4/plumbing/object"
-	"gopkg.in/yaml.v2"
+	yaml "gopkg.in/yaml.v2"
 )
 
 type Project struct {
@@ -32,30 +30,6 @@ type CIConfig struct {
 type CIJob struct {
 	Name   string   `yaml:"name"`
 	Script []string `yaml:"script"`
-}
-
-func Boot(config ServerConfig) {
-	for name, project := range config.Projects {
-		fmt.Printf("%s: %s\n", name, project.URL)
-	}
-
-	ln, _ := net.Listen("tcp", ":8080")
-	for {
-		conn, _ := ln.Accept()
-
-		buf := make([]byte, 16)
-		reqLen, err := conn.Read(buf)
-
-		if err != nil {
-			fmt.Println("Error reading:", err.Error())
-		}
-
-		fmt.Print(string(buf))
-
-		conn.Write([]byte(fmt.Sprintf("Message received: %d bytes.\n", reqLen)))
-
-		conn.Close()
-	}
 }
 
 func RunJob(project Project) {
