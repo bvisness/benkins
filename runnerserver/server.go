@@ -7,6 +7,8 @@ import (
 	"net"
 )
 
+const BufferSize = 12
+
 type RunnerServer struct {
 	Routes map[string]RequestHandler
 }
@@ -14,9 +16,11 @@ type RunnerServer struct {
 type Request struct {
 	Headers    map[string]string
 	Connection net.Conn
+
+	initialBody []byte
 }
 
-type RequestHandler func(r Request)
+type RequestHandler func(r *Request)
 
 func (s *RunnerServer) Boot() {
 	ln, _ := net.Listen("tcp", ":8080")
@@ -38,7 +42,7 @@ func (s *RunnerServer) handleConnection(conn net.Conn) {
 	var bodyBytes []byte
 
 	for {
-		buf := make([]byte, 12)
+		buf := make([]byte, BufferSize)
 		_, err := conn.Read(buf)
 
 		if err != nil {
@@ -60,13 +64,22 @@ func (s *RunnerServer) handleConnection(conn net.Conn) {
 
 	fmt.Printf("Headers: %v\n", headers)
 
-	request := Request{
-		Headers:    headers,
-		Connection: conn,
+	request := &Request{
+		Headers:     headers,
+		Connection:  conn,
+		initialBody: bodyBytes,
 	}
 
 	if handler, ok := s.Routes[request.Headers["Route"]]; ok {
-		handler(request)
+		func() {
+			defer func() {
+				if r := recover(); r != nil {
+					fmt.Printf("PANIC in handler for %s. Recovered: %v\n", request.Headers["Route"], r)
+				}
+			}()
+
+			handler(request)
+		}()
 	} else {
 		panic(fmt.Sprintf("No route found for %s", request.Headers["Route"]))
 	}
@@ -88,4 +101,20 @@ func parseHeaders(headerBytes []byte) map[string]string {
 	}
 
 	return headers
+}
+
+func (r *Request) ReadBody() ([]byte, error) {
+	if r.initialBody != nil {
+		result := r.initialBody
+		r.initialBody = nil
+		return result, nil
+	}
+
+	buf := make([]byte, BufferSize)
+	_, err := r.Connection.Read(buf)
+	if err != nil {
+		return nil, err
+	}
+
+	return buf, nil
 }
