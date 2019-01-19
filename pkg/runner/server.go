@@ -1,17 +1,34 @@
-package runnerserver
+package runner
 
 import (
 	"bytes"
 	"fmt"
+	"io"
 	"log"
 	"net"
 )
 
 const BufferSize = 12
 
-type RunnerServer struct {
-	Routes map[string]RequestHandler
+var routes = map[string]RequestHandler{
+	"foo": func(r *Request) {
+		for {
+			body, err := r.ReadBody()
+			if err == io.EOF {
+				fmt.Printf("client closed connection\n")
+				break
+			}
+			if err != nil {
+				fmt.Printf("handler error: %v\n", err)
+				break
+			}
+
+			fmt.Printf("from handler: %s\n", string(body))
+		}
+	},
 }
+
+type RunnerServer struct{}
 
 type Request struct {
 	Headers    map[string]string
@@ -70,7 +87,7 @@ func (s *RunnerServer) handleConnection(conn net.Conn) {
 		initialBody: bodyBytes,
 	}
 
-	if handler, ok := s.Routes[request.Headers["Route"]]; ok {
+	if handler, ok := routes[request.Headers["Route"]]; ok {
 		func() {
 			defer func() {
 				if r := recover(); r != nil {

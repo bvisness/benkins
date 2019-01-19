@@ -1,17 +1,14 @@
 package main
 
 import (
-	"fmt"
-	"io"
-
-	"github.com/frc-2175/roboci/runnerserver"
-	"github.com/frc-2175/roboci/server"
+	"github.com/frc-2175/roboci/pkg/runner"
+	toml "github.com/pelletier/go-toml"
 	"github.com/spf13/cobra"
+
+	"github.com/frc-2175/roboci/pkg/server"
 
 	"io/ioutil"
 )
-
-import toml "github.com/pelletier/go-toml"
 
 var configFile string
 
@@ -29,25 +26,7 @@ func main() {
 			var config server.ServerConfig
 			toml.Unmarshal(configDoc, &config)
 
-			server := runnerserver.RunnerServer{
-				Routes: map[string]runnerserver.RequestHandler{
-					"foo": func(r *runnerserver.Request) {
-						for {
-							body, err := r.ReadBody()
-							if err == io.EOF {
-								fmt.Printf("client closed connection\n")
-								break
-							}
-							if err != nil {
-								fmt.Printf("handler error: %v\n", err)
-								break
-							}
-
-							fmt.Printf("from handler: %s\n", string(body))
-						}
-					},
-				},
-			}
+			server := runner.RunnerServer{}
 
 			server.Boot()
 

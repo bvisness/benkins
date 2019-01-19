@@ -6,7 +6,7 @@ require (
 	github.com/kevinburke/ssh_config v0.0.0-20180711164746-82cf3f926438 // indirect
 	github.com/mitchellh/go-homedir v0.0.0-20180523094522-3864e76763d9 // indirect
 	github.com/pelletier/go-buffruneio v0.2.0 // indirect
-	github.com/pelletier/go-toml v1.2.0 // indirect
+	github.com/pelletier/go-toml v1.2.0
 	github.com/sergi/go-diff v1.0.0 // indirect
 	github.com/spf13/cobra v0.0.3
 	github.com/spf13/pflag v1.0.1
