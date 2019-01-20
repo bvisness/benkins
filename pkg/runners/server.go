@@ -1,137 +1,64 @@
 package runners
 
 import (
-	"bytes"
 	"fmt"
-	"io"
 	"log"
 	"net"
+
+	"github.com/frc-2175/roboci/pkg/sttp"
 )
 
 const BufferSize = 12
 
-var routes = map[string]RequestHandler{
-	"foo": func(r *Request) {
-		for {
-			body, err := r.ReadBody()
-			if err == io.EOF {
-				fmt.Printf("client closed connection\n")
-				break
-			}
-			if err != nil {
-				fmt.Printf("handler error: %v\n", err)
-				break
-			}
-
-			fmt.Printf("from handler: %s\n", string(body))
-		}
-	},
+var routes = map[string]ConnectionHandler{
+	"wait": waitForJob,
 }
 
-type RunnerServer struct{}
-
-type Request struct {
-	Headers    map[string]string
-	Connection net.Conn
-
-	initialBody []byte
+type RunnerServer struct {
+	runners map[string]ConnectedRunner
 }
 
-type RequestHandler func(r *Request)
+type ConnectionHandler func(conn sttp.Connection, server *RunnerServer)
 
 func (s *RunnerServer) Boot() {
+	s.runners = map[string]ConnectedRunner{}
+
 	ln, _ := net.Listen("tcp", ":8080")
+	fmt.Printf("Ready and waiting for connections.")
+
 	for {
 		conn, _ := ln.Accept()
 
-		go s.handleConnection(conn)
+		go s.handleConnection(sttp.NewConnection(conn))
 	}
 }
 
-func (s *RunnerServer) handleConnection(conn net.Conn) {
+func (s *RunnerServer) handleConnection(conn sttp.Connection) {
 	defer func() {
 		if r := recover(); r != nil {
 			log.Printf("FATAL ERROR: %v", r)
 		}
 	}()
 
-	var headerBytes []byte
-	var bodyBytes []byte
+	conn.WaitForHeaders()
 
-	for {
-		buf := make([]byte, BufferSize)
-		_, err := conn.Read(buf)
+	fmt.Printf("Headers: %v\n", conn.Headers)
 
-		if err != nil {
-			panic(err)
-		}
-
-		fmt.Printf("Header in progress: %s\n", string(buf))
-
-		headerBytes = append(headerBytes, buf...)
-
-		if slices := bytes.SplitN(headerBytes, []byte("ENDHEADERS\n"), 2); len(slices) >= 2 {
-			headerBytes = slices[0]
-			bodyBytes = slices[1]
-			break
-		}
-	}
-
-	headers := parseHeaders(headerBytes)
-
-	fmt.Printf("Headers: %v\n", headers)
-
-	request := &Request{
-		Headers:     headers,
-		Connection:  conn,
-		initialBody: bodyBytes,
-	}
-
-	if handler, ok := routes[request.Headers["Route"]]; ok {
+	if handler, ok := routes[conn.Headers["Route"]]; ok {
 		func() {
 			defer func() {
 				if r := recover(); r != nil {
-					fmt.Printf("PANIC in handler for %s. Recovered: %v\n", request.Headers["Route"], r)
+					fmt.Printf("PANIC in handler for %s. Recovered: %v\n", conn.Headers["Route"], r)
 				}
 			}()
 
-			handler(request)
+			handler(conn, s)
 		}()
 	} else {
-		panic(fmt.Sprintf("No route found for %s", request.Headers["Route"]))
+		panic(fmt.Sprintf("No route found for %s", conn.Headers["Route"]))
 	}
 
 	conn.Close()
 
 	fmt.Println("Closed")
-}
-
-func parseHeaders(headerBytes []byte) map[string]string {
-	headers := make(map[string]string)
-
-	lines := bytes.Split(headerBytes, []byte("\n"))
-	for _, line := range lines {
-		parts := bytes.SplitN(line, []byte("="), 2)
-		if len(parts) == 2 {
-			headers[string(parts[0])] = string(parts[1])
-		}
-	}
-
-	return headers
-}
-
-func (r *Request) ReadBody() ([]byte, error) {
-	if r.initialBody != nil {
-		result := r.initialBody
-		r.initialBody = nil
-		return result, nil
-	}
-
-	buf := make([]byte, BufferSize)
-	_, err := r.Connection.Read(buf)
-	if err != nil {
-		return nil, err
-	}
-
-	return buf, nil
 }

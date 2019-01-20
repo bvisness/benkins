@@ -5,6 +5,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/frc-2175/roboci/pkg/project"
+	"github.com/frc-2175/roboci/pkg/runners"
 
 	"io/ioutil"
 )
@@ -29,12 +30,12 @@ func main() {
 			var config Config
 			toml.Unmarshal(configDoc, &config)
 
-			for _, p := range config.Projects {
-				p.Run("")
-			}
+			//for _, p := range config.Projects {
+			//	p.Run("")
+			//}
 
-			//server := runners.RunnerServer{}
-			//server.Boot()
+			server := runners.RunnerServer{}
+			server.Boot()
 
 			//server.Boot(config)
 		},
