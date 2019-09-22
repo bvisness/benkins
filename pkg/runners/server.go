@@ -8,10 +8,8 @@ import (
 	"github.com/frc-2175/roboci/pkg/sttp"
 )
 
-const BufferSize = 12
-
 var routes = map[string]ConnectionHandler{
-	"wait": waitForJob,
+	"wait": waitForRequest,
 }
 
 type RunnerServer struct {

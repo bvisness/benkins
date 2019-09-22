@@ -43,7 +43,7 @@ func (c *Connection) WaitForHeaders() {
 
 		headerBytes = append(headerBytes, buf...)
 
-		if slices := bytes.SplitN(headerBytes, []byte("ENDHEADERS\n"), 2); len(slices) >= 2 {
+		if slices := bytes.SplitN(headerBytes, []byte("::::\n"), 2); len(slices) >= 2 {
 			headerBytes = slices[0]
 			bodyBytes = slices[1]
 			break
@@ -55,9 +55,9 @@ func (c *Connection) WaitForHeaders() {
 	c.initialBody = bodyBytes
 }
 
-func (c *Connection) ReadBody() ([]byte, error) {
+func (c *Connection) ReadBody() (int, []byte, error) {
 	if !c.HeadersComplete {
-		return []byte{}, nil
+		return 0, []byte{}, nil
 	}
 
 	if c.initialBody != nil {
@@ -65,17 +65,17 @@ func (c *Connection) ReadBody() ([]byte, error) {
 		c.initialBody = nil
 
 		if len(c.initialBody) > 0 {
-			return result, nil
+			return len(c.initialBody), result, nil
 		}
 	}
 
 	buf := make([]byte, c.BufferSize)
-	_, err := c.Read(buf)
+	n, err := c.Read(buf)
 	if err != nil {
-		return nil, err
+		return 0, nil, err
 	}
 
-	return buf, nil
+	return n, buf, nil
 }
 
 func parseHeaders(headerBytes []byte) map[string]string {

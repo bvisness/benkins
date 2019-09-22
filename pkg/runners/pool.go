@@ -20,7 +20,7 @@ const (
 	RunnerBusy
 )
 
-func waitForJob(conn sttp.Connection, server *RunnerServer) {
+func waitForRequest(conn sttp.Connection, server *RunnerServer) {
 	id := conn.Headers["RunnerID"]
 	runner := ConnectedRunner{
 		Status: RunnerReady,
@@ -31,7 +31,7 @@ func waitForJob(conn sttp.Connection, server *RunnerServer) {
 
 	for {
 		conn.SetReadDeadline(time.Now().Add(time.Second * 5))
-		body, err := conn.ReadBody()
+		_, body, err := conn.ReadBody()
 
 		if err == io.EOF {
 			fmt.Printf("client closed connection\n")

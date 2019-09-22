@@ -8,7 +8,7 @@ import (
 )
 
 func main() {
-	sendKeepAlive()
+	waitForRequest()
 }
 
 func sendBigMessage() {
@@ -17,7 +17,7 @@ func sendBigMessage() {
 
 	msg := `Route=wait
 RunnerID=12345
-ENDHEADERS
+::::
 This is a really crazy long message body, way longer than the buffer. This way, we can ensure that the whole message
 gets handled correctly. Ideally, this body would not be read into memory all at once, but is instead streamed across
 multiple reads. Wouldn't that be neat!
@@ -32,13 +32,13 @@ multiple reads. Wouldn't that be neat!
 	time.Sleep(time.Second * 10)
 }
 
-func sendKeepAlive() {
+func waitForRequest() {
 	conn, _ := net.Dial("tcp", "localhost:8080")
 	defer conn.Close()
 
 	msg := `Route=wait
 RunnerID=12345
-ENDHEADERS
+::::
 `
 
 	fmt.Println("Sending initial request...")
@@ -47,7 +47,7 @@ ENDHEADERS
 		log.Printf("ERROR: %v", err)
 	}
 
-	for i := 0; i < 10; i++ {
+	for {
 		time.Sleep(time.Second)
 
 		_, err := conn.Write([]byte("keep alive"))
