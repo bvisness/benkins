@@ -13,6 +13,24 @@ to use for this communication, so let's invent something:
 Route=routeName
 AuthKey=AXBYCZ
 Timeout=3000
-ENDHEADERS
+::::
+This is the body. The body will go on forever and ever and ever. That is, until you hit the final delimiter.
+```
+
+STTP is designed to deal with the "one-way" nature of the server/runner architecture. Runners are not publicly
+available on the internet, so the runner instead establishes a connection to the server and holds it open.
+
+STTP uses one socket connection per runner, called the initiator, to handle requests either from runner to server or
+server to runner. The initiator sends only header information. Regardless of  
+header information. The runner receives this header information and establishes a new socket connection to handle
+that request in isolation.
+
+ 
+
+```
+Route=routeName
+AuthKey=AXBYCZ
+Timeout=3000
+::::
 This is the body. The body will go on forever and ever and ever. That is, until you hit the final delimiter.
 ```
