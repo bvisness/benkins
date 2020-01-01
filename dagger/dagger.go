@@ -112,6 +112,22 @@ func MakeJobDAG2(config Config) []*Job {
 		}
 	}
 
+	// remove redundant edges
+	for _, job := range config.Jobs {
+		var deduped []*Job
+		deps := map[*Job]struct{}{}
+		for _, dep := range job.DependsOn {
+			if _, dupe := deps[dep]; dupe {
+				continue
+			}
+
+			deduped = append(deduped, dep)
+			deps[dep] = struct{}{}
+		}
+
+		job.DependsOn = deduped
+	}
+
 	return config.Jobs
 }
 
