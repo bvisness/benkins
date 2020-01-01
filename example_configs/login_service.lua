@@ -30,6 +30,10 @@ jobs.test_integration = {
 	depends_on = jobs.package_integration,
 }
 
+jobs.plan = {
+    name = 'Plan Terraform',
+}
+
 jobs.apply = {
     name = 'Apply Terraform',
 	depends_on = jobs.plan,
