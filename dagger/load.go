@@ -3,6 +3,7 @@ package dagger
 import (
 	"errors"
 	"fmt"
+	"strings"
 
 	lua "github.com/yuin/gopher-lua"
 )
@@ -40,7 +41,7 @@ func ReadLuaConfig(filename string) (Config, []error) {
 			// able to update names later as we come back around to things from the root level.
 
 			if configTable, ok := configValue.(*lua.LTable); ok {
-				_, configErrs := loader.tableToGroup(nameString, configTable)
+				_, configErrs := loader.tableToGroup(nameString, configTable, nil)
 				errs = append(errs, configErrs...)
 			} else {
 				errs = append(errs, fmt.Errorf("the config with the name '%s' was not a table", nameString))
@@ -66,9 +67,37 @@ func newLuaLoader() luaLoader {
 	}
 }
 
-func (l *luaLoader) tableToGroup(name string, table *lua.LTable) (*Group, []error) {
+func (l *luaLoader) tableToGroup(name string, table *lua.LTable, tableStack []*lua.LTable) (*Group, []error) {
+	// check for cycles
+	// TODO: This does a very poor job finding names.
+	for _, t := range tableStack {
+		if t == table {
+			var cycleNames []string
+			for _, t := range tableStack {
+				cycleName := name
+				if cycleName == "" {
+					cycleName = "<unknown>"
+				}
+
+				group := l.luaToGroup[t]
+				if group != nil {
+					if len(group.Jobs) == 1 {
+						cycleName = group.Jobs[0].Name
+					} else {
+						cycleName = group.Name
+					}
+				}
+
+				cycleNames = append(cycleNames, cycleName)
+			}
+
+			return nil, []error{fmt.Errorf("cycle detected: %s", strings.Join(cycleNames, " -> "))}
+		}
+	}
+
 	var errs []error
 
+	// return the existing group if we've already seen this table
 	if cachedGroup := l.luaToGroup[table]; cachedGroup != nil {
 		return cachedGroup, nil
 	}
@@ -90,7 +119,7 @@ func (l *luaLoader) tableToGroup(name string, table *lua.LTable) (*Group, []erro
 				continue
 			}
 
-			childGroup, childErrs := l.tableToGroup("", childTable)
+			childGroup, childErrs := l.tableToGroup("", childTable, append(tableStack, table))
 			errs = append(errs, childErrs...)
 
 			if len(childErrs) > 0 {
@@ -133,7 +162,7 @@ func (l *luaLoader) tableToGroup(name string, table *lua.LTable) (*Group, []erro
 
 		for _, depValue := range depValues {
 			if depTable, ok := depValue.(*lua.LTable); ok {
-				depGroup, depErrs := l.tableToGroup("", depTable)
+				depGroup, depErrs := l.tableToGroup("", depTable, append(tableStack, table))
 				errs = append(errs, depErrs...)
 
 				if len(depErrs) == 0 {

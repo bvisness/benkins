@@ -6,7 +6,7 @@ import (
 )
 
 func TestReadLuaConfig(t *testing.T) {
-	result, errs := ReadLuaConfig("../example_configs/login_service.lua")
+	result, errs := ReadLuaConfig("../example_configs/multidep.lua")
 	if errs != nil {
 		for _, err := range errs {
 			t.Log(err)
