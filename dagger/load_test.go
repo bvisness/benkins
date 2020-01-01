@@ -14,7 +14,7 @@ func TestReadLuaConfig(t *testing.T) {
 		t.Fail()
 	}
 
-	jobs := MakeJobDAG2(result)
+	jobs := MakeJobDAG(result)
 	t.Log("DAG", jobs)
 
 	dot := GetJobsGraphviz(jobs)

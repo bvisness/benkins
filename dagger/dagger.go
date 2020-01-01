@@ -2,16 +2,17 @@ package dagger
 
 import (
 	"fmt"
-	"log"
 	"strings"
 )
 
-type Depender struct {
+type Job struct {
+	ID        int
+	Name      string
+	DependsOn []*Job
 }
 
-type DependencyFormer interface {
-	GetJobs() []*Job
-	GetDependencies() []*Job
+func (j *Job) String() string {
+	return fmt.Sprintf("Job<%s>(%p)", j.Name, j)
 }
 
 type Group struct {
@@ -34,74 +35,7 @@ func (g *Group) String() string {
 	return fmt.Sprintf("Group<%s>(%s)(%s)", g.Name, strings.Join(children, ", "), strings.Join(deps, ", "))
 }
 
-type Job struct {
-	ID        int
-	Name      string
-	DependsOn []*Job
-}
-
-func (j *Job) String() string {
-	return fmt.Sprintf("Job<%s>(%p)", j.Name, j)
-}
-
-//func MakeJobDAG(configs []interface{}) []*Job {
-//	var jobConfigs []*JobConfig
-//	var groupConfigs []*Group
-//	seenConfigs := map[interface{}]struct{}{}
-//	var listConfigs func(config interface{})
-//	listConfigs = func(config interface{}) {
-//		if _, seen := seenConfigs[config]; seen {
-//			return // we already saw and processed this one
-//		}
-//
-//		// TODO: Maybe a future interface can keep us from having to type-switch here.
-//		switch config := config.(type) {
-//		case *JobConfig:
-//			jobConfigs = append(jobConfigs, config)
-//			for _, dependency := range config.DependsOn {
-//				listConfigs(dependency)
-//			}
-//		case *Group:
-//			groupConfigs = append(groupConfigs, config)
-//			for _, dependency := range config.Jobs {
-//				listConfigs(dependency)
-//			}
-//			for _, dependency := range config.DependsOn {
-//				listConfigs(dependency)
-//			}
-//		}
-//
-//		seenConfigs[config] = struct{}{}
-//	}
-//	for _, config := range configs {
-//		listConfigs(config)
-//	}
-//
-//	// Convert all job configs into jobs, without dependencies yet
-//	var jobs []*Job
-//	jobConfigsToJobs := map[*JobConfig]*Job{}
-//	for _, jobConfig := range jobConfigs {
-//		job := &Job{
-//			Name:      jobConfig.Name,
-//			DependsOn: nil, // will be filled out later
-//		}
-//
-//		jobs = append(jobs, job)
-//		jobConfigsToJobs[jobConfig] = job
-//	}
-//
-//	// Go through all jobs and add inter-job dependencies
-//	//for _, jobConfig := range jobConfigs {
-//	//	jobConfig.DependsOn
-//	//}
-//
-//	return jobs
-//}
-
-func MakeJobDAG2(config Config) []*Job {
-	log.Printf("%+v", config.Jobs)
-	log.Printf("%+v", config.Groups)
-
+func MakeJobDAG(config Config) []*Job {
 	for _, group := range config.Groups {
 		for _, depGroup := range group.DependsOn {
 			for _, thisJob := range group.Jobs {
@@ -151,8 +85,6 @@ func GetJobsGraphviz(jobs []*Job) string {
 		}
 	}
 	o.WriteString("}\n")
-
-	log.Print(o.String())
 
 	return o.String()
 }
