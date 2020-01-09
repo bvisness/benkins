@@ -4,8 +4,8 @@ import (
 	"bufio"
 	"context"
 	"fmt"
+	"io"
 	"io/ioutil"
-	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -13,8 +13,9 @@ import (
 	"time"
 
 	"github.com/BurntSushi/toml"
-
+	"github.com/fatih/color"
 	"gopkg.in/src-d/go-git.v4"
+	"gopkg.in/src-d/go-git.v4/plumbing"
 )
 
 type Config struct {
@@ -42,116 +43,157 @@ func Main() {
 		}
 	}
 
-	log.Print("Starting watch for " + repoUrl)
 	ticker := time.NewTicker(time.Second * 15)
 
-	previousHash := ""
+	branchHashes := map[string]string{}
 
 	for {
+		// Check for new commits to run on
+		fmt.Printf("Checking for new commits...\n")
+		var branchesToRun []*plumbing.Reference
 		func() {
-			dir, hash, cleanup := temporaryCheckout(repoUrl)
+			repo, _, cleanup := temporaryCheckout(repoUrl, "", NewColorWriter(os.Stdout, color.New(color.FgHiBlack)))
 			defer cleanup()
 
-			if hash == previousHash {
-				return
+			err := repo.Fetch(&git.FetchOptions{
+				Progress: os.Stdout,
+			})
+			if err != nil && err != git.NoErrAlreadyUpToDate {
+				panic(err)
 			}
-			defer func() {
-				previousHash = hash
-			}()
 
-			var config Config
+			remote, err := repo.Remote("origin")
+			must(err)
+			remoteRefs, err := remote.List(&git.ListOptions{})
+			must(err)
+			for _, remoteRef := range remoteRefs {
+				refName := remoteRef.Name().String()
 
-			files, _ := ioutil.ReadDir(dir)
-			didParse := false
-			for _, f := range files {
-				if f.Name() == "roboci.toml" {
-					configBytes, err := ioutil.ReadFile(filepath.Join(dir, f.Name()))
-					if err != nil {
-						fmt.Printf("ERROR reading roboci.toml: %v\n", err)
-						return
-					}
-
-					_, err = toml.Decode(string(configBytes), &config)
-					if err != nil {
-						fmt.Printf("ERROR reading roboci.toml: %v\n", err)
-						return
-					}
-
-					didParse = true
-					break
+				if !strings.HasPrefix(refName, "refs/heads/") {
+					continue
 				}
-			}
 
-			if !didParse {
-				fmt.Printf("ERROR: could not find roboci.toml\n")
-				return
-			}
-
-			if config.Script == "" {
-				fmt.Printf("ERROR: no script was provided\n")
-				return
-			}
-
-			scriptPath := filepath.Join(dir, config.Script)
-			if _, err := os.Stat(scriptPath); os.IsNotExist(err) {
-				fmt.Printf("ERROR: could not find script named '%v'\n", config.Script)
-				return
-			}
-
-			// Run the script
-			func() {
-				ctx, cancel := context.WithTimeout(context.Background(), time.Minute*5)
-				defer cancel()
-
-				cmd := exec.CommandContext(ctx, scriptPath)
-				cmd.Env = append(os.Environ(), // TODO: Environment variables what make sense
-					"ROBOCI_COMMIT_HASH="+hash,
-				)
-				cmd.Dir = dir
-
-				cmd.Stdout = os.Stdout
-				cmd.Stderr = os.Stderr
-
-				must(cmd.Start())
-				must(cmd.Wait())
-
-				if cmd.ProcessState.Success() {
-					fmt.Printf("Script executed successfully.\n")
+				name := remoteRef.Name().Short()
+				if lastHash, exists := branchHashes[name]; exists {
+					// we have seen this branch before
+					if lastHash != remoteRef.Hash().String() {
+						// new hash means new commit on this branch
+						branchesToRun = append(branchesToRun, remoteRef)
+					}
 				} else {
-					fmt.Printf("Script failed with exit code %v.\n", cmd.ProcessState.ExitCode())
+					// new branch, never seen it, so run the latest
+					branchesToRun = append(branchesToRun, remoteRef)
 				}
-			}()
-
-			// Upload the artifacts
-
-			fmt.Printf("Done.\n")
+			}
 		}()
+
+		for _, branch := range branchesToRun {
+			func() {
+				branchName := branch.Name().Short()
+				hash := branch.Hash().String()
+				color.New(color.Bold).Printf("Running for branch %v (commit %v)\n", branchName, hash)
+				branchHashes[branchName] = hash // we only want to run this once!
+
+				_, dir, cleanup := temporaryCheckout(repoUrl, hash, nil)
+				defer cleanup()
+
+				var config Config
+
+				files, _ := ioutil.ReadDir(dir)
+				didParse := false
+				for _, f := range files {
+					if f.Name() == "roboci.toml" {
+						configBytes, err := ioutil.ReadFile(filepath.Join(dir, f.Name()))
+						if err != nil {
+							fmt.Printf("ERROR reading roboci.toml: %v\n", err)
+							return
+						}
+
+						_, err = toml.Decode(string(configBytes), &config)
+						if err != nil {
+							fmt.Printf("ERROR reading roboci.toml: %v\n", err)
+							return
+						}
+
+						didParse = true
+						break
+					}
+				}
+
+				if !didParse {
+					fmt.Printf("WARNING: could not find roboci.toml, so not running anything\n")
+					return
+				}
+
+				if config.Script == "" {
+					fmt.Printf("ERROR: no script was provided\n")
+					return
+				}
+
+				scriptPath := filepath.Join(dir, config.Script)
+				if _, err := os.Stat(scriptPath); os.IsNotExist(err) {
+					fmt.Printf("ERROR: could not find script named '%v'\n", config.Script)
+					return
+				}
+
+				// Run the script
+				func() {
+					ctx, cancel := context.WithTimeout(context.Background(), time.Minute*5)
+					defer cancel()
+
+					cmd := exec.CommandContext(ctx, scriptPath)
+					cmd.Env = append(os.Environ(), // TODO: Environment variables what make sense
+						"ROBOCI_COMMIT_HASH="+hash,
+					)
+					cmd.Dir = dir
+
+					cmd.Stdout = os.Stdout
+					cmd.Stderr = NewColorWriter(os.Stderr, color.New(color.Bold, color.FgRed))
+
+					must(cmd.Start())
+					must(cmd.Wait())
+
+					if cmd.ProcessState.Success() {
+						color.New(color.FgGreen, color.Bold).Printf("Script executed successfully.\n")
+					} else {
+						color.New(color.FgRed, color.Bold).Printf("Script failed with exit code %v.\n", cmd.ProcessState.ExitCode())
+					}
+				}()
+
+				// Upload the artifacts
+
+				fmt.Printf("Done.\n")
+			}()
+		}
 
 		<-ticker.C
 	}
 }
 
-func temporaryCheckout(url string) (dir string, hash string, cleanup func()) {
+func temporaryCheckout(url string, hash string, progress io.Writer) (repo *git.Repository, dir string, cleanup func()) {
 	tmpdir, _ := ioutil.TempDir("", "")
+
+	if progress == nil {
+		progress = os.Stdout
+	}
 
 	r, err := git.PlainClone(tmpdir, false, &git.CloneOptions{
 		URL:      url,
-		Progress: os.Stdout,
+		Progress: progress,
 	})
 	must(err)
 
 	wt, err := r.Worktree()
 	must(err)
-	wt.Checkout(&git.CheckoutOptions{})
 
-	head, err := r.Head()
-	must(err)
+	opts := &git.CheckoutOptions{}
+	if hash != "" {
+		opts.Hash = plumbing.NewHash(hash)
+	}
+	must(wt.Checkout(opts))
 
-	return tmpdir, head.Hash().String(), func() {
-		err := os.RemoveAll(tmpdir)
-		if err != nil {
-			panic(err)
-		}
+	return r, tmpdir, func() {
+		must(os.RemoveAll(tmpdir))
 	}
 }
 
@@ -161,4 +203,22 @@ func must(errs ...error) {
 			panic(err)
 		}
 	}
+}
+
+type ColorWriter struct {
+	W     io.Writer
+	Color *color.Color
+}
+
+var _ io.Writer = ColorWriter{}
+
+func NewColorWriter(w io.Writer, c *color.Color) ColorWriter {
+	return ColorWriter{
+		W:     w,
+		Color: c,
+	}
+}
+
+func (w ColorWriter) Write(p []byte) (n int, err error) {
+	return w.Color.Fprint(w.W, string(p))
 }
