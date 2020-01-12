@@ -89,9 +89,16 @@ func Main() {
 
 		for _, branch := range branchesToRun {
 			func() {
+				outputFile, err := ioutil.TempFile(".", "roboci-execution-log-")
+				must(err)
+				defer outputFile.Close()
+
+				stdout := io.MultiWriter(os.Stdout, outputFile)
+				stderr := io.MultiWriter(os.Stderr, outputFile)
+
 				branchName := branch.Name().Short()
 				hash := branch.Hash().String()
-				color.New(color.Bold).Printf("Running for branch %v (commit %v)\n", branchName, hash)
+				color.New(color.Bold).Fprintf(stdout, "Running for branch %v (commit %v)\n", branchName, hash)
 				branchHashes[branchName] = hash // we only want to run this once!
 
 				_, dir, cleanup := temporaryCheckout(repoUrl, hash, nil)
@@ -105,13 +112,13 @@ func Main() {
 					if f.Name() == "roboci.toml" {
 						configBytes, err := ioutil.ReadFile(filepath.Join(dir, f.Name()))
 						if err != nil {
-							fmt.Printf("ERROR reading roboci.toml: %v\n", err)
+							fmt.Fprintf(stderr, "ERROR reading roboci.toml: %v\n", err)
 							return
 						}
 
 						_, err = toml.Decode(string(configBytes), &config)
 						if err != nil {
-							fmt.Printf("ERROR reading roboci.toml: %v\n", err)
+							fmt.Fprintf(stderr, "ERROR reading roboci.toml: %v\n", err)
 							return
 						}
 
@@ -121,18 +128,18 @@ func Main() {
 				}
 
 				if !didParse {
-					fmt.Printf("WARNING: could not find roboci.toml, so not running anything\n")
+					fmt.Fprintf(stderr, "WARNING: could not find roboci.toml, so not running anything\n")
 					return
 				}
 
 				if config.Script == "" {
-					fmt.Printf("ERROR: no script was provided\n")
+					fmt.Fprintf(stderr, "ERROR: no script was provided\n")
 					return
 				}
 
 				scriptPath := filepath.Join(dir, config.Script)
 				if _, err := os.Stat(scriptPath); os.IsNotExist(err) {
-					fmt.Printf("ERROR: could not find script named '%v'\n", config.Script)
+					fmt.Fprintf(stderr, "ERROR: could not find script named '%v'\n", config.Script)
 					return
 				}
 
@@ -147,22 +154,24 @@ func Main() {
 					)
 					cmd.Dir = dir
 
-					cmd.Stdout = os.Stdout
-					cmd.Stderr = NewColorWriter(os.Stderr, color.New(color.Bold, color.FgRed))
+					cmd.Stdout = stdout
+					cmd.Stderr = NewColorWriter(stderr, color.New(color.Bold, color.FgRed))
 
 					must(cmd.Start())
 					must(cmd.Wait())
 
 					if cmd.ProcessState.Success() {
-						color.New(color.FgGreen, color.Bold).Printf("Script executed successfully.\n")
+						color.New(color.FgGreen, color.Bold).Fprintf(stdout, "Script executed successfully.\n")
 					} else {
-						color.New(color.FgRed, color.Bold).Printf("Script failed with exit code %v.\n", cmd.ProcessState.ExitCode())
+						color.New(color.FgRed, color.Bold).Fprintf(stderr, "Script failed with exit code %v.\n", cmd.ProcessState.ExitCode())
 					}
 				}()
 
 				// Upload the artifacts
 
-				fmt.Printf("Done.\n")
+				fmt.Fprintf(stdout, "Done.\n")
+
+				// Notify us in Slack
 			}()
 		}
 
