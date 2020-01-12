@@ -89,7 +89,7 @@ func Main() {
 
 		for _, branch := range branchesToRun {
 			func() {
-				outputFile, err := ioutil.TempFile(".", "roboci-execution-log-")
+				outputFile, err := ioutil.TempFile(".", "benkins-execution-log-")
 				must(err)
 				defer outputFile.Close()
 
@@ -109,16 +109,16 @@ func Main() {
 				files, _ := ioutil.ReadDir(dir)
 				didParse := false
 				for _, f := range files {
-					if f.Name() == "roboci.toml" {
+					if f.Name() == "benkins.toml" {
 						configBytes, err := ioutil.ReadFile(filepath.Join(dir, f.Name()))
 						if err != nil {
-							fmt.Fprintf(stderr, "ERROR reading roboci.toml: %v\n", err)
+							fmt.Fprintf(stderr, "ERROR reading benkins.toml: %v\n", err)
 							return
 						}
 
 						_, err = toml.Decode(string(configBytes), &config)
 						if err != nil {
-							fmt.Fprintf(stderr, "ERROR reading roboci.toml: %v\n", err)
+							fmt.Fprintf(stderr, "ERROR reading benkins.toml: %v\n", err)
 							return
 						}
 
@@ -128,7 +128,7 @@ func Main() {
 				}
 
 				if !didParse {
-					fmt.Fprintf(stderr, "WARNING: could not find roboci.toml, so not running anything\n")
+					fmt.Fprintf(stderr, "WARNING: could not find benkins.toml, so not running anything\n")
 					return
 				}
 
@@ -150,7 +150,7 @@ func Main() {
 
 					cmd := exec.CommandContext(ctx, scriptPath)
 					cmd.Env = append(os.Environ(), // TODO: Environment variables what make sense
-						"ROBOCI_COMMIT_HASH="+hash,
+						"BENKINS_COMMIT_HASH="+hash,
 					)
 					cmd.Dir = dir
 

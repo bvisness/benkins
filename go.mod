@@ -1,4 +1,4 @@
-module github.com/frc-2175/roboci
+module github.com/frc-2175/benkins
 
 go 1.13
 
