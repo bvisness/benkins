@@ -2,14 +2,18 @@ package app
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"fmt"
 	"io"
 	"io/ioutil"
+	"mime/multipart"
 	"net/http"
 	"net/http/httputil"
+	"net/url"
 	"os"
 	"os/exec"
+	"path"
 	"path/filepath"
 	"strings"
 	"time"
@@ -117,12 +121,10 @@ func Main() {
 
 		for _, branch := range branchesToRun {
 			func() {
-				outputFile, err := ioutil.TempFile(".", "benkins-execution-log-")
-				must(err)
-				defer outputFile.Close()
+				outputBuffer := &bytes.Buffer{}
 
-				stdout := io.MultiWriter(os.Stdout, outputFile)
-				stderr := io.MultiWriter(os.Stderr, outputFile)
+				stdout := io.MultiWriter(os.Stdout, outputBuffer)
+				stderr := io.MultiWriter(os.Stderr, outputBuffer)
 
 				branchName := branch.Name().Short()
 				hash := branch.Hash().String()
@@ -196,6 +198,48 @@ func Main() {
 				}()
 
 				// Upload the artifacts
+				func() {
+					requestBody := &bytes.Buffer{}
+					writer := multipart.NewWriter(requestBody)
+
+					err := WriteMultipartFile(writer, "benkins-execution-log.txt", outputBuffer)
+					if err != nil {
+						fmt.Printf("WARNING: Failed to add execution log as artifact")
+					}
+
+					for _, artifactName := range config.Artifacts {
+						file, err := os.Open(filepath.Join(dir, artifactName))
+						if os.IsNotExist(err) {
+							fmt.Fprintf(stderr, "WARNING: Failed to read artifact '%v'\n", artifactName)
+							continue
+						}
+						defer file.Close()
+
+						err = WriteMultipartFile(writer, artifactName, file)
+						if err != nil {
+							fmt.Fprintf(stderr, "ERROR adding artifact to request: %v\n", err)
+							continue
+						}
+					}
+
+					err = writer.Close()
+					if err != nil {
+						fmt.Fprintf(stderr, "ERROR: Failed to close multipart write for artifacts")
+						return
+					}
+
+					u, _ := url.Parse(serverUrl)
+					u.Path = path.Join(u.Path, url.PathEscape(ProjectName(repoUrl)), hash, "artifacts")
+					res, err := http.Post(u.String(), writer.FormDataContentType(), requestBody)
+					if err != nil {
+						fmt.Fprintf(stderr, "ERROR uploading artifacts to server: %v\n", err)
+					}
+					if res.StatusCode < 200 || 299 < res.StatusCode {
+						fmt.Fprintf(stderr, "ERROR: did not receive success from server when uploading artifacts: \n")
+						dump, _ := httputil.DumpResponse(res, true)
+						fmt.Fprintf(stderr, string(dump)+"\n")
+					}
+				}()
 
 				fmt.Fprintf(stdout, "Done.\n")
 
@@ -258,4 +302,20 @@ func NewColorWriter(w io.Writer, c *color.Color) ColorWriter {
 
 func (w ColorWriter) Write(p []byte) (n int, err error) {
 	return w.Color.Fprint(w.W, string(p))
+}
+
+func WriteMultipartFile(w *multipart.Writer, name string, src io.Reader) error {
+	fileWriter, err := w.CreateFormFile("files", name)
+	if err != nil {
+		return err
+	}
+
+	_, err = io.Copy(fileWriter, src)
+
+	return err
+}
+
+func ProjectName(repoUrl string) string {
+	u, _ := url.Parse(repoUrl)
+	return strings.Trim(u.EscapedPath(), "/")
 }
