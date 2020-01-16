@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"net/http"
+	"net/http/httputil"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -26,6 +28,32 @@ type Config struct {
 func Main() {
 	reader := bufio.NewReader(os.Stdin)
 
+	var serverUrl string
+	for {
+		fmt.Print("Enter the Benkins server URL: ")
+		url, err := reader.ReadString('\n')
+		if err != nil {
+			fmt.Printf("ERROR: %v\n", err)
+			continue
+		}
+		url = strings.TrimSpace(url)
+
+		res, err := http.Get(url)
+		if err != nil {
+			fmt.Printf("ERROR verifying server URL: %v\n", err)
+			continue
+		}
+		if res.StatusCode != 200 {
+			fmt.Printf("ERROR: did not get a 200 response from the server: \n")
+			dump, _ := httputil.DumpResponse(res, true)
+			fmt.Println(string(dump))
+			continue
+		}
+
+		serverUrl = url
+		break
+	}
+
 	var repoUrl string
 	if len(os.Args) > 1 {
 		repoUrl = os.Args[1]
@@ -34,7 +62,7 @@ func Main() {
 			fmt.Print("Enter a repo URL (HTTPS): ")
 			url, err := reader.ReadString('\n')
 			if err != nil {
-				fmt.Printf("ERROR: %v", err)
+				fmt.Printf("ERROR: %v\n", err)
 				continue
 			}
 

@@ -54,6 +54,9 @@ func Main() {
 
 	// TODO: AUTH!!
 
+	r.GET("/", func(c *gin.Context) {
+		c.AbortWithStatus(http.StatusOK)
+	})
 	r.POST(":project/:hash/artifacts", func(c *gin.Context) {
 		project := c.Param("project")
 		hash := c.Param("hash")
