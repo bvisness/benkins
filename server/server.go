@@ -57,6 +57,18 @@ func Main() {
 	r.GET("/", func(c *gin.Context) {
 		c.AbortWithStatus(http.StatusOK)
 	})
+	r.GET(":project/:hash", func(c *gin.Context) {
+		project := c.Param("project")
+		hash := c.Param("hash")
+
+		_, err := os.Stat(filepath.Join(basePath, artifactPath(project, hash)))
+		if os.IsNotExist(err) {
+			c.AbortWithStatus(http.StatusNotFound)
+			return
+		}
+
+		c.AbortWithStatus(http.StatusOK)
+	})
 	r.POST(":project/:hash/artifacts", func(c *gin.Context) {
 		project := c.Param("project")
 		hash := c.Param("hash")

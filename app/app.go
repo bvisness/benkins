@@ -74,6 +74,7 @@ func Main() {
 			break
 		}
 	}
+	projectName := ProjectName(repoUrl)
 
 	ticker := time.NewTicker(time.Second * 15)
 
@@ -130,6 +131,26 @@ func Main() {
 				hash := branch.Hash().String()
 				color.New(color.Bold).Fprintf(stdout, "Running for branch %v (commit %v)\n", branchName, hash)
 				branchHashes[branchName] = hash // we only want to run this once!
+
+				// Check if the server has already run for this commit
+				res, err := http.Get(BuildUrl(serverUrl, projectName, hash))
+				if err != nil {
+					fmt.Fprintf(stderr, "WARNING: failed to check if this commit has already run: %v\n", err)
+					fmt.Fprintf(stderr, "Skipping job.\n")
+					return
+				}
+
+				if (res.StatusCode < 200 && 299 < res.StatusCode) && res.StatusCode != http.StatusNotFound {
+					fmt.Fprintf(stderr, "WARNING: got unexpected status code when checking if this commit has already run: %v\n")
+					dump, _ := httputil.DumpResponse(res, true)
+					fmt.Fprintf(stderr, string(dump)+"\n")
+					return
+				}
+
+				if res.StatusCode != http.StatusNotFound {
+					fmt.Fprintf(stdout, "This commit has already been run; skipping.\n")
+					return
+				}
 
 				_, dir, cleanup := temporaryCheckout(repoUrl, hash, nil)
 				defer cleanup()
@@ -318,4 +339,17 @@ func WriteMultipartFile(w *multipart.Writer, name string, src io.Reader) error {
 func ProjectName(repoUrl string) string {
 	u, _ := url.Parse(repoUrl)
 	return strings.Trim(u.EscapedPath(), "/")
+}
+
+func BuildUrl(baseUrl string, components ...string) string {
+	u, _ := url.Parse(baseUrl)
+
+	segments := []string{u.Path}
+	for i := range components {
+		segments = append(segments, url.PathEscape(components[i]))
+	}
+
+	u.Path = path.Join(segments...)
+
+	return u.String()
 }
