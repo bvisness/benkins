@@ -16,7 +16,10 @@ import (
 	"path"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"time"
+
+	"golang.org/x/crypto/ssh/terminal"
 
 	"github.com/BurntSushi/toml"
 	"github.com/fatih/color"
@@ -32,6 +35,8 @@ type Config struct {
 func Main() {
 	reader := bufio.NewReader(os.Stdin)
 
+	var password string
+
 	var serverUrl string
 	for {
 		fmt.Print("Enter the Benkins server URL: ")
@@ -42,7 +47,16 @@ func Main() {
 		}
 		url = strings.TrimSpace(url)
 
-		res, err := http.Get(url)
+		fmt.Print("Enter the password you would like the server to use: ")
+		passwordBytes, err := terminal.ReadPassword(syscall.Stdin)
+		if err != nil {
+			fmt.Printf("ERROR: %v\n", err)
+			continue
+		}
+
+		passwordString := strings.TrimSpace(string(passwordBytes))
+
+		res, err := authedGet(url, passwordString)
 		if err != nil {
 			fmt.Printf("ERROR verifying server URL: %v\n", err)
 			continue
@@ -55,6 +69,8 @@ func Main() {
 		}
 
 		serverUrl = url
+		password = passwordString
+
 		break
 	}
 
@@ -77,8 +93,6 @@ func Main() {
 	projectName := ProjectName(repoUrl)
 
 	ticker := time.NewTicker(time.Second * 15)
-
-	branchHashes := map[string]string{}
 
 	for {
 		// Check for new commits to run on
@@ -106,17 +120,7 @@ func Main() {
 					continue
 				}
 
-				name := remoteRef.Name().Short()
-				if lastHash, exists := branchHashes[name]; exists {
-					// we have seen this branch before
-					if lastHash != remoteRef.Hash().String() {
-						// new hash means new commit on this branch
-						branchesToRun = append(branchesToRun, remoteRef)
-					}
-				} else {
-					// new branch, never seen it, so run the latest
-					branchesToRun = append(branchesToRun, remoteRef)
-				}
+				branchesToRun = append(branchesToRun, remoteRef)
 			}
 		}()
 
@@ -130,24 +134,23 @@ func Main() {
 				branchName := branch.Name().Short()
 				hash := branch.Hash().String()
 				color.New(color.Bold).Fprintf(stdout, "Running for branch %v (commit %v)\n", branchName, hash)
-				branchHashes[branchName] = hash // we only want to run this once!
 
 				// Check if the server has already run for this commit
-				res, err := http.Get(BuildUrl(serverUrl, projectName, hash))
+				res, err := authedGet(BuildUrl(serverUrl, projectName, hash), password)
 				if err != nil {
 					fmt.Fprintf(stderr, "WARNING: failed to check if this commit has already run: %v\n", err)
 					fmt.Fprintf(stderr, "Skipping job.\n")
 					return
 				}
 
-				if (res.StatusCode < 200 && 299 < res.StatusCode) && res.StatusCode != http.StatusNotFound {
-					fmt.Fprintf(stderr, "WARNING: got unexpected status code when checking if this commit has already run: %v\n")
+				if !((200 <= res.StatusCode && res.StatusCode <= 299) || res.StatusCode == http.StatusNotFound) {
+					fmt.Fprintf(stderr, "WARNING: got unexpected status code when checking if this commit has already run: %v\n", res.StatusCode)
 					dump, _ := httputil.DumpResponse(res, true)
 					fmt.Fprintf(stderr, string(dump)+"\n")
 					return
 				}
 
-				if res.StatusCode != http.StatusNotFound {
+				if res.StatusCode == http.StatusOK {
 					fmt.Fprintf(stdout, "This commit has already been run; skipping.\n")
 					return
 				}
@@ -251,7 +254,7 @@ func Main() {
 
 					u, _ := url.Parse(serverUrl)
 					u.Path = path.Join(u.Path, url.PathEscape(ProjectName(repoUrl)), hash, "artifacts")
-					res, err := http.Post(u.String(), writer.FormDataContentType(), requestBody)
+					res, err := authedPost(u.String(), writer.FormDataContentType(), password, requestBody)
 					if err != nil {
 						fmt.Fprintf(stderr, "ERROR uploading artifacts to server: %v\n", err)
 					}
@@ -352,4 +355,29 @@ func BuildUrl(baseUrl string, components ...string) string {
 	u.Path = path.Join(segments...)
 
 	return u.String()
+}
+
+var serverClient = &http.Client{}
+
+func authedGet(url, password string) (*http.Response, error) {
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Set("Authorization", password)
+
+	return serverClient.Do(req)
+}
+
+func authedPost(url, contentType, password string, body io.Reader) (*http.Response, error) {
+	req, err := http.NewRequest("POST", url, body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Set("Content-Type", contentType)
+	req.Header.Set("Authorization", password)
+
+	return serverClient.Do(req)
 }

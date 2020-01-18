@@ -7,6 +7,9 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
+
+	"golang.org/x/crypto/ssh/terminal"
 
 	"github.com/gin-gonic/gin"
 )
@@ -50,9 +53,32 @@ func Main() {
 		break
 	}
 
+	var password string
+
+	for {
+		fmt.Print("Enter the password you would like the server to use: ")
+		passwordBytes, err := terminal.ReadPassword(syscall.Stdin)
+		if err != nil {
+			fmt.Printf("ERROR: %v\n", err)
+			continue
+		}
+
+		password = strings.TrimSpace(string(passwordBytes))
+
+		break
+	}
+
 	r := gin.Default()
 
-	// TODO: AUTH!!
+	r.Use(func(c *gin.Context) {
+		auth := c.GetHeader("Authorization")
+		if auth != password {
+			c.AbortWithStatus(http.StatusUnauthorized)
+			return
+		}
+
+		c.Next()
+	})
 
 	r.GET("/", func(c *gin.Context) {
 		c.AbortWithStatus(http.StatusOK)
