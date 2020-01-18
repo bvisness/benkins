@@ -32,6 +32,17 @@ type Config struct {
 	Artifacts []string
 }
 
+type JobResults struct {
+	Success bool
+}
+
+func (r JobResults) ToTOML() string {
+	return fmt.Sprintf(
+		"Success = %v\n",
+		r.Success,
+	)
+}
+
 func Main() {
 	reader := bufio.NewReader(os.Stdin)
 
@@ -197,6 +208,8 @@ func Main() {
 					return
 				}
 
+				var jobResults JobResults
+
 				// Run the script
 				func() {
 					ctx, cancel := context.WithTimeout(context.Background(), time.Minute*5)
@@ -219,6 +232,10 @@ func Main() {
 					} else {
 						color.New(color.FgRed, color.Bold).Fprintf(stderr, "Script failed with exit code %v.\n", cmd.ProcessState.ExitCode())
 					}
+
+					jobResults = JobResults{
+						Success: cmd.ProcessState.Success(),
+					}
 				}()
 
 				// Upload the artifacts
@@ -229,6 +246,11 @@ func Main() {
 					err := WriteMultipartFile(writer, "benkins-execution-log.txt", outputBuffer)
 					if err != nil {
 						fmt.Printf("WARNING: Failed to add execution log as artifact")
+					}
+
+					err = WriteMultipartFile(writer, "benkins-results.toml", bytes.NewBufferString(jobResults.ToTOML()))
+					if err != nil {
+						fmt.Printf("WARNING: Failed to add job results as an artifact")
 					}
 
 					for _, artifactName := range config.Artifacts {
@@ -267,7 +289,7 @@ func Main() {
 
 				fmt.Fprintf(stdout, "Done.\n")
 
-				// Notify us in Slack
+				// TODO: Notify us in Slack
 			}()
 		}
 
