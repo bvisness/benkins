@@ -58,12 +58,13 @@ func Main() {
 		}
 		url = strings.TrimSpace(url)
 
-		fmt.Print("Enter the password you would like the server to use: ")
+		fmt.Print("Enter the password for the server: ")
 		passwordBytes, err := terminal.ReadPassword(syscall.Stdin)
 		if err != nil {
 			fmt.Printf("ERROR: %v\n", err)
 			continue
 		}
+		fmt.Println()
 
 		passwordString := strings.TrimSpace(string(passwordBytes))
 
@@ -81,6 +82,32 @@ func Main() {
 
 		serverUrl = url
 		password = passwordString
+
+		break
+	}
+
+	var slack *SlackClient
+	var slackChannelId string
+	for {
+		fmt.Print("Enter the Slack OAuth token: ")
+		tokenBytes, err := terminal.ReadPassword(syscall.Stdin)
+		if err != nil {
+			fmt.Printf("ERROR: %v\n", err)
+			continue
+		}
+		fmt.Println()
+		tokenString := strings.TrimSpace(string(tokenBytes))
+
+		fmt.Print("Enter the Slack channel ID (NOT the channel name): ")
+		channelId, err := reader.ReadString('\n')
+		if err != nil {
+			fmt.Printf("ERROR: %v\n", err)
+			continue
+		}
+		channelId = strings.TrimSpace(channelId)
+
+		slack = NewSlackClient(tokenString)
+		slackChannelId = channelId
 
 		break
 	}
@@ -137,6 +164,12 @@ func Main() {
 
 		for _, branch := range branchesToRun {
 			func() {
+				defer func() {
+					if recovered := recover(); recovered != nil {
+						fmt.Fprintf(os.Stderr, "PANIC RECOVERED: %v", recovered)
+					}
+				}()
+
 				outputBuffer := &bytes.Buffer{}
 
 				stdout := io.MultiWriter(os.Stdout, outputBuffer)
@@ -225,7 +258,12 @@ func Main() {
 					cmd.Stderr = NewColorWriter(stderr, color.New(color.Bold, color.FgRed))
 
 					must(cmd.Start())
-					must(cmd.Wait())
+					err := cmd.Wait()
+					if err != nil {
+						if _, isExitError := err.(*exec.ExitError); !isExitError {
+							panic(err)
+						}
+					}
 
 					if cmd.ProcessState.Success() {
 						color.New(color.FgGreen, color.Bold).Fprintf(stdout, "Script executed successfully.\n")
@@ -287,9 +325,45 @@ func Main() {
 					}
 				}()
 
-				fmt.Fprintf(stdout, "Done.\n")
+				// Notify us on Slack
+				{
+					notificationText := ""
 
-				// TODO: Notify us in Slack
+					if notificationBytes, err := ioutil.ReadFile(filepath.Join(dir, "benkins-notification.txt")); err == nil {
+						notificationText = string(notificationBytes)
+					} else {
+						if os.IsNotExist(err) {
+							fmt.Println("No custom notification text.")
+						} else {
+							fmt.Fprintf(stderr, "WARNING: error while reading custom notification text")
+						}
+					}
+
+					successEmoji := ":white_check_mark:"
+					successString := "Success!"
+					if !jobResults.Success {
+						successEmoji = ":x:"
+						successString = "Failure"
+					}
+
+					_, err := slack.SlackPostMessage(SlackMessageRequest{
+						Channel: slackChannelId,
+						Text:    fmt.Sprintf("%s Branch %s (Commit %s) %s", successEmoji, branchName, hash[0:7], successString),
+						Blocks: []*SlackBlock{
+							TextBlock("*%s Branch %s (Commit %s) %s*", successEmoji, branchName, hash[0:7], successString),
+							TextBlock(notificationText),
+						},
+					})
+					if err == nil {
+						fmt.Fprintf(stdout, "Successfully posted message to Slack.\n")
+					} else {
+						fmt.Fprintf(stderr, "ERROR posting message to Slack: %v\n", err)
+					}
+				}
+
+				// TODO: Update CI status on GitHub
+
+				fmt.Fprintf(stdout, "Done.\n")
 			}()
 		}
 
