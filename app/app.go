@@ -126,7 +126,7 @@ func Main(serverUrl, password, slackToken, slackChannelId, repoUrl string) {
 
 	for {
 		// Check for new commits to run on
-		fmt.Printf("Checking for new commits...\n")
+		fmt.Printf("\nChecking for new commits...\n")
 		var branchesToRun []*plumbing.Reference
 		func() {
 			repo, _, cleanup := temporaryCheckout(repoUrl, "", NewColorWriter(os.Stdout, color.New(color.FgHiBlack)))
@@ -169,7 +169,7 @@ func Main(serverUrl, password, slackToken, slackChannelId, repoUrl string) {
 
 				branchName := branch.Name().Short()
 				hash := branch.Hash().String()
-				color.New(color.Bold).Fprintf(stdout, "Running for branch %v (commit %v)\n", branchName, hash)
+				color.New(color.Bold).Fprintf(stdout, "\nRunning for branch %v (commit %v)\n", branchName, hash)
 
 				// Check if the server has already run for this commit
 				res, err := authedGet(BuildUrl(serverUrl, "api", shared.Base64Encode(projectName), hash), password)
