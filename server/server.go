@@ -7,7 +7,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"syscall"
 
 	"github.com/gin-contrib/multitemplate"
 
@@ -59,7 +58,7 @@ func Main(basePath, password string) {
 
 	for password == "" {
 		fmt.Print("Enter the password you would like the server to use: ")
-		passwordBytes, err := terminal.ReadPassword(syscall.Stdin)
+		passwordBytes, err := terminal.ReadPassword(int(os.Stdin.Fd()))
 		if err != nil {
 			fmt.Printf("ERROR: %v\n", err)
 			continue

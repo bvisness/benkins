@@ -31,32 +31,36 @@ type Config struct {
 	Artifacts []string
 }
 
-func Main() {
+func Main(serverUrl, password, slackToken, slackChannelId, repoUrl string) {
 	reader := bufio.NewReader(os.Stdin)
 
-	var password string
-
-	var serverUrl string
-	for {
-		fmt.Print("Enter the Benkins server URL: ")
-		url, err := reader.ReadString('\n')
-		if err != nil {
-			fmt.Printf("ERROR: %v\n", err)
-			continue
+	for serverUrl == "" || password == "" {
+		tempUrl := serverUrl
+		if serverUrl == "" {
+			var err error
+			fmt.Print("Enter the Benkins server URL: ")
+			tempUrl, err = reader.ReadString('\n')
+			if err != nil {
+				fmt.Printf("ERROR: %v\n", err)
+				continue
+			}
+			tempUrl = strings.TrimSpace(tempUrl)
 		}
-		url = strings.TrimSpace(url)
 
-		fmt.Print("Enter the password for the server: ")
-		passwordBytes, err := terminal.ReadPassword(int(os.Stdin.Fd()))
-		if err != nil {
-			fmt.Printf("ERROR: %v\n", err)
-			continue
+		tempPassword := password
+		if password == "" {
+			fmt.Print("Enter the password for the server (press Ctrl-Z instead of Enter on Windows): ")
+			passwordBytes, err := terminal.ReadPassword(int(os.Stdin.Fd()))
+			if err != nil {
+				fmt.Printf("ERROR: %v\n", err)
+				continue
+			}
+			fmt.Println()
+
+			tempPassword = strings.TrimSpace(string(passwordBytes))
 		}
-		fmt.Println()
 
-		passwordString := strings.TrimSpace(string(passwordBytes))
-
-		res, err := authedGet(BuildUrl(url, "api"), passwordString)
+		res, err := authedGet(BuildUrl(tempUrl, "api"), tempPassword)
 		if err != nil {
 			fmt.Printf("ERROR verifying server URL: %v\n", err)
 			continue
@@ -68,23 +72,24 @@ func Main() {
 			continue
 		}
 
-		serverUrl = url
-		password = passwordString
+		serverUrl = tempUrl
+		password = tempPassword
 
 		break
 	}
 
 	var slack *SlackClient
-	var slackChannelId string
-	for {
-		fmt.Print("Enter the Slack OAuth token: ")
-		tokenBytes, err := terminal.ReadPassword(int(os.Stdin.Fd()))
-		if err != nil {
-			fmt.Printf("ERROR: %v\n", err)
-			continue
+	for slack == nil {
+		if slackToken == "" {
+			fmt.Print("Enter the Slack OAuth token (press Ctrl-Z instead of Enter on Windows): ")
+			tokenBytes, err := terminal.ReadPassword(int(os.Stdin.Fd()))
+			if err != nil {
+				fmt.Printf("ERROR: %v\n", err)
+				continue
+			}
+			fmt.Println()
+			slackToken = strings.TrimSpace(string(tokenBytes))
 		}
-		fmt.Println()
-		tokenString := strings.TrimSpace(string(tokenBytes))
 
 		fmt.Print("Enter the Slack channel ID (NOT the channel name): ")
 		channelId, err := reader.ReadString('\n')
@@ -94,27 +99,22 @@ func Main() {
 		}
 		channelId = strings.TrimSpace(channelId)
 
-		slack = NewSlackClient(tokenString)
+		slack = NewSlackClient(slackToken)
 		slackChannelId = channelId
 
 		break
 	}
 
-	var repoUrl string
-	if len(os.Args) > 1 {
-		repoUrl = os.Args[1]
-	} else {
-		for {
-			fmt.Print("Enter a repo URL (HTTPS): ")
-			url, err := reader.ReadString('\n')
-			if err != nil {
-				fmt.Printf("ERROR: %v\n", err)
-				continue
-			}
-
-			repoUrl = strings.TrimSpace(url)
-			break
+	for repoUrl == "" {
+		fmt.Print("Enter a repo URL (HTTPS): ")
+		url, err := reader.ReadString('\n')
+		if err != nil {
+			fmt.Printf("ERROR: %v\n", err)
+			continue
 		}
+
+		repoUrl = strings.TrimSpace(url)
+		break
 	}
 	projectName := ProjectName(repoUrl)
 

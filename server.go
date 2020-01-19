@@ -16,13 +16,13 @@ func main() {
 	}
 
 	cmd := &cobra.Command{
-		Use: "server",
+		Use: "benkins-server",
 		Run: func(cmd *cobra.Command, args []string) {
 			server.Main(basePath, password)
 		},
 	}
 	cmd.Flags().StringVar(&basePath, "basePath", basePath, "The path to serve all files from")
-	cmd.Flags().StringVar(&password, "password", password, "The password used for client authentication")
+	cmd.Flags().StringVar(&password, "Password", password, "The Password used for client authentication")
 
 	err := cmd.Execute()
 	if err != nil {
