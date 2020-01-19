@@ -9,12 +9,16 @@ import (
 	"strings"
 	"syscall"
 
+	"github.com/gin-contrib/multitemplate"
+
 	"golang.org/x/crypto/ssh/terminal"
 
 	"github.com/gin-gonic/gin"
 )
 
 const LineWidth = 100
+
+type v map[string]interface{}
 
 func Main() {
 	reader := bufio.NewReader(os.Stdin)
@@ -68,9 +72,18 @@ func Main() {
 		break
 	}
 
-	r := gin.Default()
+	loader := NewLoader(basePath)
 
-	r.Use(func(c *gin.Context) {
+	r := gin.Default()
+	r.HTMLRender = multitemplate.NewRenderer()
+
+	r.Static("/static", "server/static")
+
+	r.GET("/", Home(r, loader))
+	r.GET("p/:project", ProjectIndex(r, loader))
+	r.GET("p/:project/:hash", CommitIndex(r, loader))
+
+	api := r.Group("api", func(c *gin.Context) {
 		auth := c.GetHeader("Authorization")
 		if auth != password {
 			c.AbortWithStatus(http.StatusUnauthorized)
@@ -79,53 +92,56 @@ func Main() {
 
 		c.Next()
 	})
+	{
+		api.GET("/", func(c *gin.Context) {
+			c.AbortWithStatus(http.StatusOK)
+		})
+		api.GET(":project/:hash", func(c *gin.Context) {
+			projectEncoded := c.Param("project")
+			hash := c.Param("hash")
 
-	r.GET("/", func(c *gin.Context) {
-		c.AbortWithStatus(http.StatusOK)
-	})
-	r.GET(":project/:hash", func(c *gin.Context) {
-		project := c.Param("project")
-		hash := c.Param("hash")
+			_, err := os.Stat(filepath.Join(basePath, artifactPath(projectEncoded, hash)))
+			if os.IsNotExist(err) {
+				c.AbortWithStatus(http.StatusNotFound)
+				return
+			}
 
-		_, err := os.Stat(filepath.Join(basePath, artifactPath(project, hash)))
-		if os.IsNotExist(err) {
-			c.AbortWithStatus(http.StatusNotFound)
-			return
-		}
+			c.AbortWithStatus(http.StatusOK)
+		})
+		api.POST(":project/:hash/artifacts", func(c *gin.Context) {
+			projectEncoded := c.Param("project")
+			hash := c.Param("hash")
 
-		c.AbortWithStatus(http.StatusOK)
-	})
-	r.POST(":project/:hash/artifacts", func(c *gin.Context) {
-		project := c.Param("project")
-		hash := c.Param("hash")
-
-		form, err := c.MultipartForm()
-		if err != nil {
-			c.AbortWithError(http.StatusBadRequest, fmt.Errorf("form was no good: %v", err))
-			return
-		}
-
-		files := form.File["files"]
-
-		for _, file := range files {
-			dstDir := filepath.Join(basePath, artifactPath(project, hash))
-			err := os.MkdirAll(dstDir, 0755)
+			form, err := c.MultipartForm()
 			if err != nil {
-				c.AbortWithError(http.StatusInternalServerError, fmt.Errorf("error creating artifact directory: %v", err))
+				c.AbortWithError(http.StatusBadRequest, fmt.Errorf("form was no good: %v", err))
 				return
 			}
 
-			dst := filepath.Join(dstDir, filepath.Base(file.Filename))
-			if err := c.SaveUploadedFile(file, dst); err != nil {
-				c.String(http.StatusBadRequest, fmt.Sprintf("upload file err: %v", err))
-				return
+			files := form.File["files"]
+
+			for _, file := range files {
+				dstDir := filepath.Join(basePath, artifactPath(projectEncoded, hash))
+				err := os.MkdirAll(dstDir, 0755)
+				if err != nil {
+					c.AbortWithError(http.StatusInternalServerError, fmt.Errorf("error creating artifact directory: %v", err))
+					return
+				}
+
+				dst := filepath.Join(dstDir, filepath.Base(file.Filename))
+				if err := c.SaveUploadedFile(file, dst); err != nil {
+					c.String(http.StatusBadRequest, fmt.Sprintf("upload file err: %v", err))
+					return
+				}
 			}
-		}
 
-		c.String(http.StatusOK, "Artifacts uploaded successfully.")
-	})
+			c.String(http.StatusOK, "Artifacts uploaded successfully.")
+		})
+	}
 
-	r.Run(":8080")
+	if err := r.Run(":8080"); err != nil {
+		panic(err)
+	}
 }
 
 func wrap(text string) string {
@@ -148,6 +164,6 @@ func wrap(text string) string {
 	return wrapped
 }
 
-func artifactPath(project, hash string) string {
-	return filepath.Join(project, hash)
+func artifactPath(projectEncoded, hash string) string {
+	return filepath.Join(projectEncoded, hash)
 }

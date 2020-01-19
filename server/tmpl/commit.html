@@ -1,0 +1,5 @@
+{{define "content"}}
+    <h2>Commit {{.commit.Hash}}</h2>
+    <p>Result: {{if .commit.Success}}Success{{else}}Failure{{end}}</p>
+    <p><a href="logs">View Logs</a></p>
+{{end}}

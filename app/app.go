@@ -19,10 +19,10 @@ import (
 	"syscall"
 	"time"
 
-	"golang.org/x/crypto/ssh/terminal"
-
 	"github.com/BurntSushi/toml"
 	"github.com/fatih/color"
+	"github.com/frc-2175/benkins/shared"
+	"golang.org/x/crypto/ssh/terminal"
 	"gopkg.in/src-d/go-git.v4"
 	"gopkg.in/src-d/go-git.v4/plumbing"
 )
@@ -30,17 +30,6 @@ import (
 type Config struct {
 	Script    string
 	Artifacts []string
-}
-
-type JobResults struct {
-	Success bool
-}
-
-func (r JobResults) ToTOML() string {
-	return fmt.Sprintf(
-		"Success = %v\n",
-		r.Success,
-	)
 }
 
 func Main() {
@@ -68,7 +57,7 @@ func Main() {
 
 		passwordString := strings.TrimSpace(string(passwordBytes))
 
-		res, err := authedGet(url, passwordString)
+		res, err := authedGet(BuildUrl(url, "api"), passwordString)
 		if err != nil {
 			fmt.Printf("ERROR verifying server URL: %v\n", err)
 			continue
@@ -180,7 +169,7 @@ func Main() {
 				color.New(color.Bold).Fprintf(stdout, "Running for branch %v (commit %v)\n", branchName, hash)
 
 				// Check if the server has already run for this commit
-				res, err := authedGet(BuildUrl(serverUrl, projectName, hash), password)
+				res, err := authedGet(BuildUrl(serverUrl, "api", shared.Base64Encode(projectName), hash), password)
 				if err != nil {
 					fmt.Fprintf(stderr, "WARNING: failed to check if this commit has already run: %v\n", err)
 					fmt.Fprintf(stderr, "Skipping job.\n")
@@ -241,7 +230,9 @@ func Main() {
 					return
 				}
 
-				var jobResults JobResults
+				jobResults := shared.JobResults{
+					BranchName: branchName,
+				}
 
 				// Run the script
 				func() {
@@ -271,9 +262,7 @@ func Main() {
 						color.New(color.FgRed, color.Bold).Fprintf(stderr, "Script failed with exit code %v.\n", cmd.ProcessState.ExitCode())
 					}
 
-					jobResults = JobResults{
-						Success: cmd.ProcessState.Success(),
-					}
+					jobResults.Success = cmd.ProcessState.Success()
 				}()
 
 				// Upload the artifacts
@@ -292,18 +281,20 @@ func Main() {
 					}
 
 					for _, artifactName := range config.Artifacts {
-						file, err := os.Open(filepath.Join(dir, artifactName))
-						if os.IsNotExist(err) {
-							fmt.Fprintf(stderr, "WARNING: Failed to read artifact '%v'\n", artifactName)
-							continue
-						}
-						defer file.Close()
+						func() {
+							file, err := os.Open(filepath.Join(dir, artifactName))
+							if os.IsNotExist(err) {
+								fmt.Fprintf(stderr, "WARNING: Failed to read artifact '%v'\n", artifactName)
+								return
+							}
+							defer file.Close()
 
-						err = WriteMultipartFile(writer, artifactName, file)
-						if err != nil {
-							fmt.Fprintf(stderr, "ERROR adding artifact to request: %v\n", err)
-							continue
-						}
+							err = WriteMultipartFile(writer, artifactName, file)
+							if err != nil {
+								fmt.Fprintf(stderr, "ERROR adding artifact to request: %v\n", err)
+								return
+							}
+						}()
 					}
 
 					err = writer.Close()
@@ -312,9 +303,12 @@ func Main() {
 						return
 					}
 
-					u, _ := url.Parse(serverUrl)
-					u.Path = path.Join(u.Path, url.PathEscape(ProjectName(repoUrl)), hash, "artifacts")
-					res, err := authedPost(u.String(), writer.FormDataContentType(), password, requestBody)
+					res, err := authedPost(
+						BuildUrl(serverUrl, "api", shared.Base64Encode(ProjectName(repoUrl)), hash, "artifacts"),
+						writer.FormDataContentType(),
+						password,
+						requestBody,
+					)
 					if err != nil {
 						fmt.Fprintf(stderr, "ERROR uploading artifacts to server: %v\n", err)
 					}

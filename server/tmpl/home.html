@@ -1,0 +1,8 @@
+{{define "content"}}
+    <h2>Projects</h2>
+    <ul>
+        {{range $name, $commits := .projects}}
+            <li><a href="{{projectUrl $name}}">{{$name}}</a></li>
+        {{end}}
+    </ul>
+{{end}}
