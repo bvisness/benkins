@@ -22,10 +22,8 @@ type v map[string]interface{}
 
 // TODO: Sanitize dots in filepath stuff everywhere
 
-func Main() {
+func Main(basePath, password string) {
 	reader := bufio.NewReader(os.Stdin)
-
-	var basePath string
 
 	for {
 		fmt.Print("Enter the path where you would like to serve from: ")
@@ -58,8 +56,6 @@ func Main() {
 
 		break
 	}
-
-	var password string
 
 	for {
 		fmt.Print("Enter the password you would like the server to use: ")
