@@ -16,7 +16,6 @@ import (
 	"path"
 	"path/filepath"
 	"strings"
-	"syscall"
 	"time"
 
 	"github.com/BurntSushi/toml"
@@ -48,7 +47,7 @@ func Main() {
 		url = strings.TrimSpace(url)
 
 		fmt.Print("Enter the password for the server: ")
-		passwordBytes, err := terminal.ReadPassword(syscall.Stdin)
+		passwordBytes, err := terminal.ReadPassword(int(os.Stdin.Fd()))
 		if err != nil {
 			fmt.Printf("ERROR: %v\n", err)
 			continue
@@ -79,7 +78,7 @@ func Main() {
 	var slackChannelId string
 	for {
 		fmt.Print("Enter the Slack OAuth token: ")
-		tokenBytes, err := terminal.ReadPassword(syscall.Stdin)
+		tokenBytes, err := terminal.ReadPassword(int(os.Stdin.Fd()))
 		if err != nil {
 			fmt.Printf("ERROR: %v\n", err)
 			continue
