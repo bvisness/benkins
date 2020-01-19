@@ -18,6 +18,7 @@ type Commit struct {
 	Time       time.Time
 	Success    bool
 	Filepath   string
+	Files      []string
 }
 
 type Branch struct {
@@ -101,12 +102,23 @@ func (l *Loader) Commit(projectNameEncoded, hash string) (Commit, error) {
 		return Commit{}, fmt.Errorf("failed to decode %s for %s commit %s: %v", shared.ResultsFilename, shared.Base64Decode(projectNameEncoded), hash, err)
 	}
 
+	fileInfos, err := ioutil.ReadDir(folderPath)
+	if err != nil {
+		return Commit{}, err
+	}
+
+	var files []string
+	for _, info := range fileInfos {
+		files = append(files, info.Name())
+	}
+
 	return Commit{
 		Hash:       hash,
 		BranchName: results.BranchName,
 		Time:       info.ModTime(),
 		Success:    results.Success,
 		Filepath:   filepath.Join(l.BasePath, projectNameEncoded, hash),
+		Files:      files,
 	}, nil
 }
 

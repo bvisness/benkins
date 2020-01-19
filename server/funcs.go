@@ -3,6 +3,7 @@ package server
 import (
 	"fmt"
 	"html/template"
+	"net/url"
 
 	"github.com/frc-2175/benkins/shared"
 )
@@ -10,6 +11,7 @@ import (
 var TemplateFuncs = template.FuncMap{
 	"projectUrl": ProjectUrl,
 	"commitUrl":  CommitUrl,
+	"fileUrl":    FileUrl,
 	"short":      Short,
 }
 
@@ -19,6 +21,10 @@ func ProjectUrl(name string) string {
 
 func CommitUrl(projectName, hash string) string {
 	return fmt.Sprintf("/p/%s/%s", shared.Base64Encode(projectName), hash)
+}
+
+func FileUrl(projectName, hash, filename string) string {
+	return fmt.Sprintf("/p/%s/%s/f/%s", shared.Base64Encode(projectName), hash, url.PathEscape(filename))
 }
 
 func Short(hash string) string {

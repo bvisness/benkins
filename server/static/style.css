@@ -1,0 +1,143 @@
+.ansi .bold {
+    font-weight: bold;
+}
+
+.ansi .faint {
+    opacity: 0.5;
+}
+
+.ansi .italic {
+    font-style: italic;
+}
+
+.ansi .underline {
+    text-decoration: underline;
+}
+
+.ansi .fgblack {
+    color: black;
+}
+
+.ansi .fgred {
+    color: #c91b00;
+}
+
+.ansi .fggreen {
+    color: #00c200;
+}
+
+.ansi .fgyellow {
+    color: #c7c400;
+}
+
+.ansi .fgblue {
+    color: #0225c7;
+}
+
+.ansi .fgmagenta {
+    color: #c930c7;
+}
+
+.ansi .fgcyan {
+    color: #00c5c7;
+}
+
+.ansi .fgwhite {
+    color: #c7c7c7;
+}
+
+.ansi .fghiblack {
+    color: #676767;
+}
+
+.ansi .fghired {
+    color: #ff6d67;
+}
+
+.ansi .fghigreen {
+    color: #5ff967;
+}
+
+.ansi .fghiyellow {
+    color: #fefb67;
+}
+
+.ansi .fghiblue {
+    color: #6871ff;
+}
+
+.ansi .fghimagenta {
+    color: #ff76ff;
+}
+
+.ansi .fghicyan {
+    color: #5ffdff;
+}
+
+.ansi .fghiwhite {
+    color: #feffff;
+}
+
+.ansi .bgblack {
+    background-color: black;
+}
+
+.ansi .bgred {
+    background-color: #c91b00;
+}
+
+.ansi .bggreen {
+    background-color: #00c200;
+}
+
+.ansi .bgyellow {
+    background-color: #c7c400;
+}
+
+.ansi .bgblue {
+    background-color: #0225c7;
+}
+
+.ansi .bgmagenta {
+    background-color: #c930c7;
+}
+
+.ansi .bgcyan {
+    background-color: #00c5c7;
+}
+
+.ansi .bgwhite {
+    background-color: #c7c7c7;
+}
+
+.ansi .bghiblack {
+    background-color: #676767;
+}
+
+.ansi .bghired {
+    background-color: #ff6d67;
+}
+
+.ansi .bghigreen {
+    background-color: #5ff967;
+}
+
+.ansi .bghiyellow {
+    background-color: #fefb67;
+}
+
+.ansi .bghiblue {
+    background-color: #6871ff;
+}
+
+.ansi .bghimagenta {
+    background-color: #ff76ff;
+}
+
+.ansi .bghicyan {
+    background-color: #5ffdff;
+}
+
+.ansi .bghiwhite {
+    background-color: #feffff;
+}

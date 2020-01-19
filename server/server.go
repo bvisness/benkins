@@ -20,6 +20,8 @@ const LineWidth = 100
 
 type v map[string]interface{}
 
+// TODO: Sanitize dots in filepath stuff everywhere
+
 func Main() {
 	reader := bufio.NewReader(os.Stdin)
 
@@ -83,6 +85,7 @@ func Main() {
 	r.GET("p/:project", ProjectIndex(r, loader))
 	r.GET("p/:project/:hash", CommitIndex(r, loader))
 	r.GET("p/:project/:hash/logs", LogsIndex(r, loader))
+	r.GET("p/:project/:hash/f/:file", FileIndex(r, loader))
 
 	api := r.Group("api", func(c *gin.Context) {
 		auth := c.GetHeader("Authorization")
