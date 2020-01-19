@@ -91,16 +91,20 @@ func Main(serverUrl, password, slackToken, slackChannelId, repoUrl string) {
 			slackToken = strings.TrimSpace(string(tokenBytes))
 		}
 
-		fmt.Print("Enter the Slack channel ID (NOT the channel name): ")
-		channelId, err := reader.ReadString('\n')
-		if err != nil {
-			fmt.Printf("ERROR: %v\n", err)
-			continue
+		tempChannelId := slackChannelId
+		if slackChannelId == "" {
+			var err error
+			fmt.Print("Enter the Slack channel ID (NOT the channel name): ")
+			tempChannelId, err = reader.ReadString('\n')
+			if err != nil {
+				fmt.Printf("ERROR: %v\n", err)
+				continue
+			}
+			tempChannelId = strings.TrimSpace(tempChannelId)
 		}
-		channelId = strings.TrimSpace(channelId)
 
 		slack = NewSlackClient(slackToken)
-		slackChannelId = channelId
+		slackChannelId = tempChannelId
 
 		break
 	}
