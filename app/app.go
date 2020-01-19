@@ -346,6 +346,7 @@ func Main() {
 						Blocks: []*SlackBlock{
 							TextBlock("*%s Branch %s (Commit %s) %s*", successEmoji, branchName, hash[0:7], successString),
 							TextBlock(notificationText),
+							TextBlock("<%s|View the full results>", BuildUrl(serverUrl, "p", shared.Base64Encode(projectName), hash)),
 						},
 					})
 					if err == nil {
