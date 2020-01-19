@@ -2,6 +2,12 @@ package shared
 
 import "fmt"
 
+const (
+	ExecutionLogFilename = "benkins-execution-log.txt"
+	ResultsFilename      = "benkins-results.toml"
+	NotificationFilename = "benkins-notification.txt"
+)
+
 type JobResults struct {
 	Success    bool
 	BranchName string

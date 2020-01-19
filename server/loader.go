@@ -17,6 +17,7 @@ type Commit struct {
 	BranchName string
 	Time       time.Time
 	Success    bool
+	Filepath   string
 }
 
 type Branch struct {
@@ -89,15 +90,15 @@ func (l *Loader) Commit(projectNameEncoded, hash string) (Commit, error) {
 		return Commit{}, err
 	}
 
-	resultBytes, err := ioutil.ReadFile(filepath.Join(folderPath, "benkins-results.toml"))
+	resultBytes, err := ioutil.ReadFile(filepath.Join(folderPath, shared.ResultsFilename))
 	if err != nil {
-		return Commit{}, fmt.Errorf("failed to read benkins-results.toml for %s commit %s: %v", shared.Base64Decode(projectNameEncoded), hash, err)
+		return Commit{}, fmt.Errorf("failed to read %s for %s commit %s: %v", shared.ResultsFilename, shared.Base64Decode(projectNameEncoded), hash, err)
 	}
 
 	var results shared.JobResults
 	_, err = toml.Decode(string(resultBytes), &results)
 	if err != nil {
-		return Commit{}, fmt.Errorf("failed to decode benkins-results.toml for %s commit %s: %v", shared.Base64Decode(projectNameEncoded), hash, err)
+		return Commit{}, fmt.Errorf("failed to decode %s for %s commit %s: %v", shared.ResultsFilename, shared.Base64Decode(projectNameEncoded), hash, err)
 	}
 
 	return Commit{
@@ -105,6 +106,7 @@ func (l *Loader) Commit(projectNameEncoded, hash string) (Commit, error) {
 		BranchName: results.BranchName,
 		Time:       info.ModTime(),
 		Success:    results.Success,
+		Filepath:   filepath.Join(l.BasePath, projectNameEncoded, hash),
 	}, nil
 }
 

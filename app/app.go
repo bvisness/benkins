@@ -270,12 +270,12 @@ func Main() {
 					requestBody := &bytes.Buffer{}
 					writer := multipart.NewWriter(requestBody)
 
-					err := WriteMultipartFile(writer, "benkins-execution-log.txt", outputBuffer)
+					err := WriteMultipartFile(writer, shared.ExecutionLogFilename, outputBuffer)
 					if err != nil {
 						fmt.Printf("WARNING: Failed to add execution log as artifact")
 					}
 
-					err = WriteMultipartFile(writer, "benkins-results.toml", bytes.NewBufferString(jobResults.ToTOML()))
+					err = WriteMultipartFile(writer, shared.ResultsFilename, bytes.NewBufferString(jobResults.ToTOML()))
 					if err != nil {
 						fmt.Printf("WARNING: Failed to add job results as an artifact")
 					}
@@ -323,7 +323,7 @@ func Main() {
 				{
 					notificationText := ""
 
-					if notificationBytes, err := ioutil.ReadFile(filepath.Join(dir, "benkins-notification.txt")); err == nil {
+					if notificationBytes, err := ioutil.ReadFile(filepath.Join(dir, shared.NotificationFilename)); err == nil {
 						notificationText = string(notificationBytes)
 					} else {
 						if os.IsNotExist(err) {

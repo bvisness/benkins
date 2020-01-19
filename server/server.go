@@ -82,6 +82,7 @@ func Main() {
 	r.GET("/", Home(r, loader))
 	r.GET("p/:project", ProjectIndex(r, loader))
 	r.GET("p/:project/:hash", CommitIndex(r, loader))
+	r.GET("p/:project/:hash/logs", LogsIndex(r, loader))
 
 	api := r.Group("api", func(c *gin.Context) {
 		auth := c.GetHeader("Authorization")
