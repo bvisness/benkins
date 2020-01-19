@@ -25,7 +25,7 @@ type v map[string]interface{}
 func Main(basePath, password string) {
 	reader := bufio.NewReader(os.Stdin)
 
-	for {
+	for basePath == "" {
 		fmt.Print("Enter the path where you would like to serve from: ")
 		path, err := reader.ReadString('\n')
 		if err != nil {
@@ -57,7 +57,7 @@ func Main(basePath, password string) {
 		break
 	}
 
-	for {
+	for password == "" {
 		fmt.Print("Enter the password you would like the server to use: ")
 		passwordBytes, err := terminal.ReadPassword(syscall.Stdin)
 		if err != nil {

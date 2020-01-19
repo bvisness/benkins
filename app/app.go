@@ -119,7 +119,7 @@ func Main() {
 	}
 	projectName := ProjectName(repoUrl)
 
-	ticker := time.NewTicker(time.Second * 15)
+	ticker := time.NewTicker(time.Minute * 1)
 
 	for {
 		// Check for new commits to run on
