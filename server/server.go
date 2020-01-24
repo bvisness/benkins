@@ -9,10 +9,8 @@ import (
 	"strings"
 
 	"github.com/gin-contrib/multitemplate"
-
-	"golang.org/x/crypto/ssh/terminal"
-
 	"github.com/gin-gonic/gin"
+	"golang.org/x/crypto/ssh/terminal"
 )
 
 const LineWidth = 100

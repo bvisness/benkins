@@ -172,7 +172,7 @@ func Main(serverUrl, password, slackToken, slackChannelId, repoUrl string) {
 				color.New(color.Bold).Fprintf(stdout, "\nRunning for branch %v (commit %v)\n", branchName, hash)
 
 				// Check if the server has already run for this commit
-				res, err := authedGet(BuildUrl(serverUrl, "api", shared.Base64Encode(projectName), hash), password)
+				res, err := authedGet(BuildUrl(serverUrl, "api", projectName.Encoded(), hash), password)
 				if err != nil {
 					fmt.Fprintf(stderr, "WARNING: failed to check if this commit has already run: %v\n", err)
 					fmt.Fprintf(stderr, "Skipping job.\n")
@@ -307,7 +307,7 @@ func Main(serverUrl, password, slackToken, slackChannelId, repoUrl string) {
 					}
 
 					res, err := authedPost(
-						BuildUrl(serverUrl, "api", shared.Base64Encode(ProjectName(repoUrl)), hash, "artifacts"),
+						BuildUrl(serverUrl, "api", projectName.Encoded(), hash, "artifacts"),
 						writer.FormDataContentType(),
 						password,
 						requestBody,
@@ -323,7 +323,7 @@ func Main(serverUrl, password, slackToken, slackChannelId, repoUrl string) {
 				}()
 
 				// Notify us on Slack
-				{
+				if slackChannelId != "test" {
 					notificationText := ""
 
 					if notificationBytes, err := ioutil.ReadFile(filepath.Join(dir, shared.NotificationFilename)); err == nil {
@@ -349,7 +349,7 @@ func Main(serverUrl, password, slackToken, slackChannelId, repoUrl string) {
 						Blocks: []*SlackBlock{
 							TextBlock("*%s Branch %s (Commit %s) %s*", successEmoji, branchName, hash[0:7], successString),
 							TextBlock(notificationText),
-							TextBlock("<%s|View the full results>", BuildUrl(serverUrl, "p", shared.Base64Encode(projectName), hash)),
+							TextBlock("<%s|View the full results>", BuildUrl(serverUrl, "p", projectName.Encoded(), hash)),
 						},
 					})
 					if err == nil {
@@ -433,9 +433,14 @@ func WriteMultipartFile(w *multipart.Writer, name string, src io.Reader) error {
 	return err
 }
 
-func ProjectName(repoUrl string) string {
+func ProjectName(repoUrl string) shared.ProjectName {
+	var result string
+
 	u, _ := url.Parse(repoUrl)
-	return strings.Trim(u.EscapedPath(), "/")
+	result = strings.Trim(u.EscapedPath(), "/")
+	strings.TrimSuffix(result, ".git")
+
+	return shared.NewProjectNameFromPlain(result)
 }
 
 func BuildUrl(baseUrl string, components ...string) string {

@@ -5,12 +5,14 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/frc-2175/benkins/shared"
+
 	"github.com/gin-gonic/gin"
 )
 
 func FileIndex(r *gin.Engine, loader Loader) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		commit, err := loader.Commit(c.Param("project"), c.Param("hash"))
+		commit, err := loader.Commit(shared.NewProjectNameFromEncoded(c.Param("project")), c.Param("hash"))
 		if err != nil {
 			c.AbortWithError(http.StatusInternalServerError, err)
 			return

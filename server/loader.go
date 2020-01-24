@@ -36,8 +36,8 @@ func NewLoader(path string) Loader {
 	}
 }
 
-func (l *Loader) LoadProjects() (map[string][]Commit, error) {
-	result := map[string][]Commit{}
+func (l *Loader) LoadProjects() (map[shared.ProjectName][]Commit, error) {
+	result := map[shared.ProjectName][]Commit{}
 
 	projectInfos, err := ioutil.ReadDir(l.BasePath)
 	if err != nil {
@@ -49,9 +49,9 @@ func (l *Loader) LoadProjects() (map[string][]Commit, error) {
 			continue
 		}
 
-		projectName := shared.Base64Decode(projectInfo.Name())
+		projectName := shared.NewProjectNameFromEncoded(projectInfo.Name())
 
-		commits, err := l.ProjectCommits(projectInfo.Name())
+		commits, err := l.ProjectCommits(projectName)
 		if err != nil {
 			return nil, err
 		}
@@ -62,8 +62,8 @@ func (l *Loader) LoadProjects() (map[string][]Commit, error) {
 	return result, nil
 }
 
-func (l *Loader) ProjectCommits(encodedName string) ([]Commit, error) {
-	commitInfos, err := ioutil.ReadDir(filepath.Join(l.BasePath, encodedName))
+func (l *Loader) ProjectCommits(name shared.ProjectName) ([]Commit, error) {
+	commitInfos, err := ioutil.ReadDir(filepath.Join(l.BasePath, name.Encoded()))
 	if err != nil {
 		return nil, err
 	}
@@ -71,7 +71,7 @@ func (l *Loader) ProjectCommits(encodedName string) ([]Commit, error) {
 	var commits []Commit
 
 	for _, commitInfo := range commitInfos {
-		commit, err := l.Commit(encodedName, commitInfo.Name())
+		commit, err := l.Commit(name, commitInfo.Name())
 		if err != nil {
 			fmt.Printf("WARNING: %v\n", err)
 			continue
@@ -83,8 +83,8 @@ func (l *Loader) ProjectCommits(encodedName string) ([]Commit, error) {
 	return commits, nil
 }
 
-func (l *Loader) Commit(projectNameEncoded, hash string) (Commit, error) {
-	folderPath := filepath.Join(l.BasePath, projectNameEncoded, hash)
+func (l *Loader) Commit(projectName shared.ProjectName, hash string) (Commit, error) {
+	folderPath := filepath.Join(l.BasePath, projectName.Encoded(), hash)
 
 	info, err := os.Stat(folderPath)
 	if err != nil {
@@ -93,13 +93,13 @@ func (l *Loader) Commit(projectNameEncoded, hash string) (Commit, error) {
 
 	resultBytes, err := ioutil.ReadFile(filepath.Join(folderPath, shared.ResultsFilename))
 	if err != nil {
-		return Commit{}, fmt.Errorf("failed to read %s for %s commit %s: %v", shared.ResultsFilename, shared.Base64Decode(projectNameEncoded), hash, err)
+		return Commit{}, fmt.Errorf("failed to read %s for %s commit %s: %v", shared.ResultsFilename, projectName.Decoded(), hash, err)
 	}
 
 	var results shared.JobResults
 	_, err = toml.Decode(string(resultBytes), &results)
 	if err != nil {
-		return Commit{}, fmt.Errorf("failed to decode %s for %s commit %s: %v", shared.ResultsFilename, shared.Base64Decode(projectNameEncoded), hash, err)
+		return Commit{}, fmt.Errorf("failed to decode %s for %s commit %s: %v", shared.ResultsFilename, projectName.Decoded(), hash, err)
 	}
 
 	fileInfos, err := ioutil.ReadDir(folderPath)
@@ -117,7 +117,7 @@ func (l *Loader) Commit(projectNameEncoded, hash string) (Commit, error) {
 		BranchName: results.BranchName,
 		Time:       info.ModTime(),
 		Success:    results.Success,
-		Filepath:   filepath.Join(l.BasePath, projectNameEncoded, hash),
+		Filepath:   filepath.Join(l.BasePath, projectName.Encoded(), hash),
 		Files:      files,
 	}, nil
 }

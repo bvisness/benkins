@@ -15,16 +15,16 @@ var TemplateFuncs = template.FuncMap{
 	"short":      Short,
 }
 
-func ProjectUrl(name string) string {
-	return fmt.Sprintf("/p/%s", shared.Base64Encode(name))
+func ProjectUrl(name shared.ProjectName) string {
+	return fmt.Sprintf("/p/%s", name.Encoded())
 }
 
-func CommitUrl(projectName, hash string) string {
-	return fmt.Sprintf("/p/%s/%s", shared.Base64Encode(projectName), hash)
+func CommitUrl(projectName shared.ProjectName, hash string) string {
+	return fmt.Sprintf("/p/%s/%s", projectName.Encoded(), hash)
 }
 
-func FileUrl(projectName, hash, filename string) string {
-	return fmt.Sprintf("/p/%s/%s/f/%s", shared.Base64Encode(projectName), hash, url.PathEscape(filename))
+func FileUrl(projectName shared.ProjectName, hash, filename string) string {
+	return fmt.Sprintf("/p/%s/%s/f/%s", projectName.Encoded(), hash, url.PathEscape(filename))
 }
 
 func Short(hash string) string {

@@ -12,13 +12,13 @@ func ProjectIndex(r *gin.Engine, loader Loader) gin.HandlerFunc {
 	r.HTMLRender.(multitemplate.Renderer).AddFromFilesFuncs("project", TemplateFuncs, "server/tmpl/base.html", "server/tmpl/project.html")
 
 	return func(c *gin.Context) {
-		commits, err := loader.ProjectCommits(c.Param("project"))
+		projectName := shared.NewProjectNameFromEncoded(c.Param("project"))
+
+		commits, err := loader.ProjectCommits(projectName)
 		if err != nil {
 			c.AbortWithError(http.StatusInternalServerError, err)
 			return
 		}
-
-		projectName := shared.Base64Decode(c.Param("project"))
 
 		c.HTML(http.StatusOK, "project", v{
 			"projectName": projectName,

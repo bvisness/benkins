@@ -23,7 +23,7 @@ func LogsIndex(r *gin.Engine, loader Loader) gin.HandlerFunc {
 	r.HTMLRender.(multitemplate.Renderer).AddFromFilesFuncs("logs", TemplateFuncs, "server/tmpl/base.html", "server/tmpl/logs.html")
 
 	return func(c *gin.Context) {
-		commit, err := loader.Commit(c.Param("project"), c.Param("hash"))
+		commit, err := loader.Commit(shared.NewProjectNameFromEncoded(c.Param("project")), c.Param("hash"))
 		if err != nil {
 			c.AbortWithError(http.StatusInternalServerError, err)
 			return

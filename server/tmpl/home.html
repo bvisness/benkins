@@ -2,7 +2,7 @@
     <h2>Projects</h2>
     <ul>
         {{range $name, $commits := .projects}}
-            <li><a href="{{projectUrl $name}}">{{$name}}</a></li>
+            <li><a href="{{projectUrl $name}}">{{$name.Decoded}}</a></li>
         {{end}}
     </ul>
 {{end}}
