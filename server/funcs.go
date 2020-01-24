@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"html/template"
 	"net/url"
+	"time"
 
 	"github.com/frc-2175/benkins/shared"
 )
@@ -13,6 +14,9 @@ var TemplateFuncs = template.FuncMap{
 	"commitUrl":  CommitUrl,
 	"fileUrl":    FileUrl,
 	"short":      Short,
+
+	"now":        time.Now,
+	"timeSecond": func() time.Duration { return time.Second },
 }
 
 func ProjectUrl(name shared.ProjectName) string {

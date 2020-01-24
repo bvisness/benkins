@@ -31,8 +31,20 @@ type Config struct {
 	Artifacts []string
 }
 
-func Main(serverUrl, password, slackToken, slackChannelId, repoUrl string) {
+func Main(name, serverUrl, password, slackToken, slackChannelId, repoUrl string) {
 	reader := bufio.NewReader(os.Stdin)
+
+	for name == "" {
+		fmt.Print("Enter a name to use to identify this computer: ")
+		tempName, err := reader.ReadString('\n')
+		if err != nil {
+			fmt.Printf("ERROR: %v\n", err)
+			continue
+		}
+		tempName = strings.TrimSpace(tempName)
+
+		name = tempName
+	}
 
 	for serverUrl == "" || password == "" {
 		tempUrl := serverUrl
@@ -121,6 +133,19 @@ func Main(serverUrl, password, slackToken, slackChannelId, repoUrl string) {
 		break
 	}
 	projectName := ProjectName(repoUrl)
+
+	// heartbeats
+	go func() {
+		url := BuildUrl(serverUrl, "api")
+		q := url.Query()
+		q.Add("name", name)
+		url.RawQuery = q.Encode()
+
+		for {
+			authedGet(url, password)
+			time.Sleep(1 * time.Minute)
+		}
+	}()
 
 	ticker := time.NewTicker(time.Minute * 1)
 
@@ -443,7 +468,7 @@ func ProjectName(repoUrl string) shared.ProjectName {
 	return shared.NewProjectNameFromPlain(result)
 }
 
-func BuildUrl(baseUrl string, components ...string) string {
+func BuildUrl(baseUrl string, components ...string) *url.URL {
 	u, _ := url.Parse(baseUrl)
 
 	segments := []string{u.Path}
@@ -453,13 +478,13 @@ func BuildUrl(baseUrl string, components ...string) string {
 
 	u.Path = path.Join(segments...)
 
-	return u.String()
+	return u
 }
 
 var serverClient = &http.Client{}
 
-func authedGet(url, password string) (*http.Response, error) {
-	req, err := http.NewRequest("GET", url, nil)
+func authedGet(url *url.URL, password string) (*http.Response, error) {
+	req, err := http.NewRequest("GET", url.String(), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -469,8 +494,8 @@ func authedGet(url, password string) (*http.Response, error) {
 	return serverClient.Do(req)
 }
 
-func authedPost(url, contentType, password string, body io.Reader) (*http.Response, error) {
-	req, err := http.NewRequest("POST", url, body)
+func authedPost(url *url.URL, contentType, password string, body io.Reader) (*http.Response, error) {
+	req, err := http.NewRequest("POST", url.String(), body)
 	if err != nil {
 		return nil, err
 	}

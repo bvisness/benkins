@@ -5,4 +5,11 @@
             <li><a href="{{projectUrl $name}}">{{$name.Decoded}}</a></li>
         {{end}}
     </ul>
+
+    <h2>Runners</h2>
+    <ul>
+        {{range $name, $time := .heartbeats}}
+            <li>{{$name}}: Last checked in {{(now.Sub $time).Truncate timeSecond}} ago</li>
+        {{end}}
+    </ul>
 {{end}}

@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/gin-contrib/multitemplate"
 	"github.com/gin-gonic/gin"
@@ -16,6 +17,8 @@ import (
 const LineWidth = 100
 
 type v map[string]interface{}
+
+var heartbeats = map[string]time.Time{}
 
 // TODO: Sanitize dots in filepath stuff everywhere
 
@@ -90,8 +93,12 @@ func Main(basePath, password string) {
 	})
 	{
 		api.GET("/", func(c *gin.Context) {
+			if name := c.Query("name"); name != "" {
+				heartbeats[name] = time.Now()
+			}
 			c.AbortWithStatus(http.StatusOK)
 		})
+
 		api.GET(":project/:hash", func(c *gin.Context) {
 			projectEncoded := c.Param("project")
 			hash := c.Param("hash")

@@ -18,7 +18,8 @@ func Home(r *gin.Engine, loader Loader) gin.HandlerFunc {
 		}
 
 		c.HTML(http.StatusOK, "home", v{
-			"projects": projects,
+			"projects":   projects,
+			"heartbeats": heartbeats,
 		})
 	}
 }

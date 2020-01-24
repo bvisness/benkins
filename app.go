@@ -9,6 +9,7 @@ import (
 )
 
 type Config struct {
+	Name           string
 	ServerUrl      string
 	Password       string
 	SlackToken     string
@@ -29,9 +30,10 @@ func main() {
 	cmd := &cobra.Command{
 		Use: "benkins-app",
 		Run: func(cmd *cobra.Command, args []string) {
-			app.Main(config.ServerUrl, config.Password, config.SlackToken, config.SlackChannelId, config.RepoUrl)
+			app.Main(config.Name, config.ServerUrl, config.Password, config.SlackToken, config.SlackChannelId, config.RepoUrl)
 		},
 	}
+	cmd.Flags().StringVar(&config.Name, "name", config.Name, "The name to use to identify this client")
 	cmd.Flags().StringVar(&config.ServerUrl, "serverUrl", config.ServerUrl, "The url of the Benkins server")
 	cmd.Flags().StringVar(&config.Password, "password", config.Password, "The Password used for client authentication")
 	cmd.Flags().StringVar(&config.SlackToken, "slackToken", config.SlackToken, "The OAuth token for Slack")
