@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <title>Benkins</title>
@@ -7,17 +8,28 @@
     <link rel="stylesheet" href="/static/tachyons.css">
     <link rel="stylesheet" href="/static/style.css">
 </head>
-<body>
 
-<h1 class="ma0 ph3 pv2 bg-black-10 bb b--black-20">
-    <a href="/">Benkins</a>
-</h1>
-
-<main class="pa2">
-{{block "content" .}}
-    This is the base template.
+{{define "ansitext"}}
+    <pre class="ansi">
+        {{- range . -}}
+            <span class="{{.Classes}}">{{.Text}}</span>
+        {{- end -}}
+    </pre>
 {{end}}
-</main>
 
+<body>
+    <a class="header" href="/">
+        <h1 class="ma0 ph3 pv2 bg-black-10 bb b--black-20">
+            <img src="/static/benkins.png" class="v-mid pr2" style="height: 3rem">
+            <span class="v-mid">Benkins</span>
+        </h1>
+    </a>
+
+    <main class="pa2">
+        {{block "content" .}}
+            This is the base template.
+        {{end}}
+    </main>
 </body>
+
 </html>

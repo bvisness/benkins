@@ -3,7 +3,10 @@
         <h2>{{.Name}}</h2>
         <ul>
             {{range .Commits}}
-                <li><a href="{{commitUrl $.projectName .Hash}}">{{short .Hash}}</a></li>
+                <li>
+                    {{if .Success}}✅{{else}}❌{{end}}
+                    <a href="{{commitUrl $.projectName .Hash}}">{{short .Hash}}</a>
+                </li>
             {{end}}
         </ul>
     {{end}}

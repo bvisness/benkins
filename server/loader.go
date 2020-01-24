@@ -80,6 +80,10 @@ func (l *Loader) ProjectCommits(name shared.ProjectName) ([]Commit, error) {
 		commits = append(commits, commit)
 	}
 
+	sort.Slice(commits, func(i, j int) bool {
+		return commits[i].Time.After(commits[j].Time)
+	})
+
 	return commits, nil
 }
 
@@ -146,7 +150,7 @@ func (l *Loader) Branches(commits []Commit) []Branch {
 			return true
 		}
 
-		return result[j].Commits[0].Time.After(result[i].Commits[0].Time)
+		return result[i].Commits[0].Time.After(result[j].Commits[0].Time)
 	})
 
 	return result

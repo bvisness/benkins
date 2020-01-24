@@ -77,7 +77,6 @@ func Main(basePath, password string) {
 	r.GET("/", Home(r, loader))
 	r.GET("p/:project", ProjectIndex(r, loader))
 	r.GET("p/:project/:hash", CommitIndex(r, loader))
-	r.GET("p/:project/:hash/logs", LogsIndex(r, loader))
 	r.GET("p/:project/:hash/f/:file", FileIndex(r, loader))
 
 	api := r.Group("api", func(c *gin.Context) {

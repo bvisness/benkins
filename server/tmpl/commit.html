@@ -1,13 +1,14 @@
 {{define "content"}}
     {{with $c := .commit}}
         <h2>Commit {{.Hash}}</h2>
-        <p>Result: {{if .Success}}Success{{else}}Failure{{end}}</p>
-        <p><a href="{{commitUrl $.projectName .Hash}}/logs">View Logs</a></p>
+        <p>Result: {{if .Success}}Success ✅{{else}}Failure ❌{{end}}</p>
         <h3>Files</h3>
         <ul>
             {{range $i, $f := .Files}}
                 <li><a href="{{commitUrl $.projectName $c.Hash}}/f/{{$f}}">{{$f}}</a></li>
             {{end}}
         </ul>
+        <h3>Logs</h3>
+        {{template "ansitext" $.logBlocks}}
     {{end}}
 {{end}}
