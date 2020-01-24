@@ -6,6 +6,7 @@
                 <li>
                     {{if .Success}}✅{{else}}❌{{end}}
                     <a href="{{commitUrl $.projectName .Hash}}">{{short .Hash}}</a>
+                    <span class="gray i">{{.Time.Format "Jan 2, 3:04 PM"}}</span>
                 </li>
             {{end}}
         </ul>
