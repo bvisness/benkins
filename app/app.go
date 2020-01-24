@@ -150,247 +150,255 @@ func Main(name, serverUrl, password, slackToken, slackChannelId, repoUrl string)
 	ticker := time.NewTicker(time.Minute * 1)
 
 	for {
-		// Check for new commits to run on
-		fmt.Printf("\nChecking for new commits...\n")
-		var branchesToRun []*plumbing.Reference
 		func() {
-			repo, _, cleanup := temporaryCheckout(repoUrl, "", NewColorWriter(os.Stdout, color.New(color.FgHiBlack)))
-			defer cleanup()
-
-			err := repo.Fetch(&git.FetchOptions{
-				Progress: os.Stdout,
-			})
-			if err != nil && err != git.NoErrAlreadyUpToDate {
-				panic(err)
-			}
-
-			remote, err := repo.Remote("origin")
-			must(err)
-			remoteRefs, err := remote.List(&git.ListOptions{})
-			must(err)
-			for _, remoteRef := range remoteRefs {
-				refName := remoteRef.Name().String()
-
-				if !strings.HasPrefix(refName, "refs/heads/") {
-					continue
+			defer func() {
+				if recovered := recover(); recovered != nil {
+					fmt.Fprintf(os.Stderr, "PANIC RECOVERED: %v", recovered)
 				}
+			}()
 
-				branchesToRun = append(branchesToRun, remoteRef)
-			}
-		}()
-
-		for _, branch := range branchesToRun {
+			// Check for new commits to run on
+			fmt.Printf("\nChecking for new commits...\n")
+			var branchesToRun []*plumbing.Reference
 			func() {
-				defer func() {
-					if recovered := recover(); recovered != nil {
-						fmt.Fprintf(os.Stderr, "PANIC RECOVERED: %v", recovered)
-					}
-				}()
-
-				outputBuffer := &bytes.Buffer{}
-
-				stdout := io.MultiWriter(os.Stdout, outputBuffer)
-				stderr := io.MultiWriter(os.Stderr, outputBuffer)
-
-				branchName := branch.Name().Short()
-				hash := branch.Hash().String()
-				color.New(color.Bold).Fprintf(stdout, "\nRunning for branch %v (commit %v)\n", branchName, hash)
-
-				// Check if the server has already run for this commit
-				res, err := authedGet(BuildUrl(serverUrl, "api", projectName.Encoded(), hash), password)
-				if err != nil {
-					fmt.Fprintf(stderr, "WARNING: failed to check if this commit has already run: %v\n", err)
-					fmt.Fprintf(stderr, "Skipping job.\n")
-					return
-				}
-
-				if !((200 <= res.StatusCode && res.StatusCode <= 299) || res.StatusCode == http.StatusNotFound) {
-					fmt.Fprintf(stderr, "WARNING: got unexpected status code when checking if this commit has already run: %v\n", res.StatusCode)
-					dump, _ := httputil.DumpResponse(res, true)
-					fmt.Fprintf(stderr, string(dump)+"\n")
-					return
-				}
-
-				if res.StatusCode == http.StatusOK {
-					fmt.Fprintf(stdout, "This commit has already been run; skipping.\n")
-					return
-				}
-
-				_, dir, cleanup := temporaryCheckout(repoUrl, hash, nil)
+				repo, _, cleanup := temporaryCheckout(repoUrl, "", NewColorWriter(os.Stdout, color.New(color.FgHiBlack)))
 				defer cleanup()
 
-				var config Config
+				err := repo.Fetch(&git.FetchOptions{
+					Progress: os.Stdout,
+				})
+				if err != nil && err != git.NoErrAlreadyUpToDate {
+					panic(err)
+				}
 
-				files, _ := ioutil.ReadDir(dir)
-				didParse := false
-				for _, f := range files {
-					if f.Name() == "benkins.toml" {
-						configBytes, err := ioutil.ReadFile(filepath.Join(dir, f.Name()))
-						if err != nil {
-							fmt.Fprintf(stderr, "ERROR reading benkins.toml: %v\n", err)
-							return
-						}
+				remote, err := repo.Remote("origin")
+				must(err)
+				remoteRefs, err := remote.List(&git.ListOptions{})
+				must(err)
+				for _, remoteRef := range remoteRefs {
+					refName := remoteRef.Name().String()
 
-						_, err = toml.Decode(string(configBytes), &config)
-						if err != nil {
-							fmt.Fprintf(stderr, "ERROR reading benkins.toml: %v\n", err)
-							return
-						}
-
-						didParse = true
-						break
+					if !strings.HasPrefix(refName, "refs/heads/") {
+						continue
 					}
-				}
 
-				if !didParse {
-					fmt.Fprintf(stderr, "WARNING: could not find benkins.toml, so not running anything\n")
-					return
+					branchesToRun = append(branchesToRun, remoteRef)
 				}
+			}()
 
-				if config.Script == "" {
-					fmt.Fprintf(stderr, "ERROR: no script was provided\n")
-					return
-				}
-
-				scriptPath := filepath.Join(dir, config.Script)
-				if _, err := os.Stat(scriptPath); os.IsNotExist(err) {
-					fmt.Fprintf(stderr, "ERROR: could not find script named '%v'\n", config.Script)
-					return
-				}
-
-				jobResults := shared.JobResults{
-					BranchName: branchName,
-				}
-
-				// Run the script
+			for _, branch := range branchesToRun {
 				func() {
-					ctx, cancel := context.WithTimeout(context.Background(), time.Minute*5)
-					defer cancel()
-
-					cmd := exec.CommandContext(ctx, scriptPath)
-					cmd.Env = append(os.Environ(), // TODO: Environment variables what make sense
-						"BENKINS_COMMIT_HASH="+hash,
-					)
-					cmd.Dir = dir
-
-					cmd.Stdout = stdout
-					cmd.Stderr = NewColorWriter(stderr, color.New(color.Bold, color.FgRed))
-
-					must(cmd.Start())
-					err := cmd.Wait()
-					if err != nil {
-						if _, isExitError := err.(*exec.ExitError); !isExitError {
-							panic(err)
+					defer func() {
+						if recovered := recover(); recovered != nil {
+							fmt.Fprintf(os.Stderr, "PANIC RECOVERED: %v", recovered)
 						}
-					}
+					}()
 
-					if cmd.ProcessState.Success() {
-						color.New(color.FgGreen, color.Bold).Fprintf(stdout, "Script executed successfully.\n")
-					} else {
-						color.New(color.FgRed, color.Bold).Fprintf(stderr, "Script failed with exit code %v.\n", cmd.ProcessState.ExitCode())
-					}
+					outputBuffer := &bytes.Buffer{}
 
-					jobResults.Success = cmd.ProcessState.Success()
-				}()
+					stdout := io.MultiWriter(os.Stdout, outputBuffer)
+					stderr := io.MultiWriter(os.Stderr, outputBuffer)
 
-				// Upload the artifacts
-				func() {
-					requestBody := &bytes.Buffer{}
-					writer := multipart.NewWriter(requestBody)
+					branchName := branch.Name().Short()
+					hash := branch.Hash().String()
+					color.New(color.Bold).Fprintf(stdout, "\nRunning for branch %v (commit %v)\n", branchName, hash)
 
-					err := WriteMultipartFile(writer, shared.ExecutionLogFilename, outputBuffer)
+					// Check if the server has already run for this commit
+					res, err := authedGet(BuildUrl(serverUrl, "api", projectName.Encoded(), hash), password)
 					if err != nil {
-						fmt.Printf("WARNING: Failed to add execution log as artifact")
-					}
-
-					err = WriteMultipartFile(writer, shared.ResultsFilename, bytes.NewBufferString(jobResults.ToTOML()))
-					if err != nil {
-						fmt.Printf("WARNING: Failed to add job results as an artifact")
-					}
-
-					for _, artifactName := range config.Artifacts {
-						func() {
-							file, err := os.Open(filepath.Join(dir, artifactName))
-							if os.IsNotExist(err) {
-								fmt.Fprintf(stderr, "WARNING: Failed to read artifact '%v'\n", artifactName)
-								return
-							}
-							defer file.Close()
-
-							err = WriteMultipartFile(writer, artifactName, file)
-							if err != nil {
-								fmt.Fprintf(stderr, "ERROR adding artifact to request: %v\n", err)
-								return
-							}
-						}()
-					}
-
-					err = writer.Close()
-					if err != nil {
-						fmt.Fprintf(stderr, "ERROR: Failed to close multipart write for artifacts")
+						fmt.Fprintf(stderr, "WARNING: failed to check if this commit has already run: %v\n", err)
+						fmt.Fprintf(stderr, "Skipping job.\n")
 						return
 					}
 
-					res, err := authedPost(
-						BuildUrl(serverUrl, "api", projectName.Encoded(), hash, "artifacts"),
-						writer.FormDataContentType(),
-						password,
-						requestBody,
-					)
-					if err != nil {
-						fmt.Fprintf(stderr, "ERROR uploading artifacts to server: %v\n", err)
-					}
-					if res.StatusCode < 200 || 299 < res.StatusCode {
-						fmt.Fprintf(stderr, "ERROR: did not receive success from server when uploading artifacts: \n")
+					if !((200 <= res.StatusCode && res.StatusCode <= 299) || res.StatusCode == http.StatusNotFound) {
+						fmt.Fprintf(stderr, "WARNING: got unexpected status code when checking if this commit has already run: %v\n", res.StatusCode)
 						dump, _ := httputil.DumpResponse(res, true)
 						fmt.Fprintf(stderr, string(dump)+"\n")
+						return
 					}
-				}()
 
-				// Notify us on Slack
-				if slackChannelId != "test" {
-					notificationText := ""
+					if res.StatusCode == http.StatusOK {
+						fmt.Fprintf(stdout, "This commit has already been run; skipping.\n")
+						return
+					}
 
-					if notificationBytes, err := ioutil.ReadFile(filepath.Join(dir, shared.NotificationFilename)); err == nil {
-						notificationText = string(notificationBytes)
-					} else {
-						if os.IsNotExist(err) {
-							fmt.Println("No custom notification text.")
-						} else {
-							fmt.Fprintf(stderr, "WARNING: error while reading custom notification text")
+					_, dir, cleanup := temporaryCheckout(repoUrl, hash, nil)
+					defer cleanup()
+
+					var config Config
+
+					files, _ := ioutil.ReadDir(dir)
+					didParse := false
+					for _, f := range files {
+						if f.Name() == "benkins.toml" {
+							configBytes, err := ioutil.ReadFile(filepath.Join(dir, f.Name()))
+							if err != nil {
+								fmt.Fprintf(stderr, "ERROR reading benkins.toml: %v\n", err)
+								return
+							}
+
+							_, err = toml.Decode(string(configBytes), &config)
+							if err != nil {
+								fmt.Fprintf(stderr, "ERROR reading benkins.toml: %v\n", err)
+								return
+							}
+
+							didParse = true
+							break
 						}
 					}
 
-					successEmoji := ":white_check_mark:"
-					successString := "Success!"
-					if !jobResults.Success {
-						successEmoji = ":x:"
-						successString = "Failure"
+					if !didParse {
+						fmt.Fprintf(stderr, "WARNING: could not find benkins.toml, so not running anything\n")
+						return
 					}
 
-					_, err := slack.SlackPostMessage(SlackMessageRequest{
-						Channel: slackChannelId,
-						Text:    fmt.Sprintf("%s Branch %s (Commit %s) %s", successEmoji, branchName, hash[0:7], successString),
-						Blocks: []*SlackBlock{
-							TextBlock("*%s Branch %s (Commit %s) %s*", successEmoji, branchName, hash[0:7], successString),
-							TextBlock(notificationText),
-							TextBlock("<%s|View the full results>", BuildUrl(serverUrl, "p", projectName.Encoded(), hash)),
-						},
-					})
-					if err == nil {
-						fmt.Fprintf(stdout, "Successfully posted message to Slack.\n")
-					} else {
-						fmt.Fprintf(stderr, "ERROR posting message to Slack: %v\n", err)
+					if config.Script == "" {
+						fmt.Fprintf(stderr, "ERROR: no script was provided\n")
+						return
 					}
-				}
 
-				// TODO: Update CI status on GitHub
+					scriptPath := filepath.Join(dir, config.Script)
+					if _, err := os.Stat(scriptPath); os.IsNotExist(err) {
+						fmt.Fprintf(stderr, "ERROR: could not find script named '%v'\n", config.Script)
+						return
+					}
 
-				fmt.Fprintf(stdout, "Done.\n")
-			}()
-		}
+					jobResults := shared.JobResults{
+						BranchName: branchName,
+					}
 
-		<-ticker.C
+					// Run the script
+					func() {
+						ctx, cancel := context.WithTimeout(context.Background(), time.Minute*5)
+						defer cancel()
+
+						cmd := exec.CommandContext(ctx, scriptPath)
+						cmd.Env = append(os.Environ(), // TODO: Environment variables what make sense
+							"BENKINS_COMMIT_HASH="+hash,
+						)
+						cmd.Dir = dir
+
+						cmd.Stdout = stdout
+						cmd.Stderr = NewColorWriter(stderr, color.New(color.Bold, color.FgRed))
+
+						must(cmd.Start())
+						err := cmd.Wait()
+						if err != nil {
+							if _, isExitError := err.(*exec.ExitError); !isExitError {
+								panic(err)
+							}
+						}
+
+						if cmd.ProcessState.Success() {
+							color.New(color.FgGreen, color.Bold).Fprintf(stdout, "Script executed successfully.\n")
+						} else {
+							color.New(color.FgRed, color.Bold).Fprintf(stderr, "Script failed with exit code %v.\n", cmd.ProcessState.ExitCode())
+						}
+
+						jobResults.Success = cmd.ProcessState.Success()
+					}()
+
+					// Upload the artifacts
+					func() {
+						requestBody := &bytes.Buffer{}
+						writer := multipart.NewWriter(requestBody)
+
+						err := WriteMultipartFile(writer, shared.ExecutionLogFilename, outputBuffer)
+						if err != nil {
+							fmt.Printf("WARNING: Failed to add execution log as artifact")
+						}
+
+						err = WriteMultipartFile(writer, shared.ResultsFilename, bytes.NewBufferString(jobResults.ToTOML()))
+						if err != nil {
+							fmt.Printf("WARNING: Failed to add job results as an artifact")
+						}
+
+						for _, artifactName := range config.Artifacts {
+							func() {
+								file, err := os.Open(filepath.Join(dir, artifactName))
+								if os.IsNotExist(err) {
+									fmt.Fprintf(stderr, "WARNING: Failed to read artifact '%v'\n", artifactName)
+									return
+								}
+								defer file.Close()
+
+								err = WriteMultipartFile(writer, artifactName, file)
+								if err != nil {
+									fmt.Fprintf(stderr, "ERROR adding artifact to request: %v\n", err)
+									return
+								}
+							}()
+						}
+
+						err = writer.Close()
+						if err != nil {
+							fmt.Fprintf(stderr, "ERROR: Failed to close multipart write for artifacts")
+							return
+						}
+
+						res, err := authedPost(
+							BuildUrl(serverUrl, "api", projectName.Encoded(), hash, "artifacts"),
+							writer.FormDataContentType(),
+							password,
+							requestBody,
+						)
+						if err != nil {
+							fmt.Fprintf(stderr, "ERROR uploading artifacts to server: %v\n", err)
+						}
+						if res.StatusCode < 200 || 299 < res.StatusCode {
+							fmt.Fprintf(stderr, "ERROR: did not receive success from server when uploading artifacts: \n")
+							dump, _ := httputil.DumpResponse(res, true)
+							fmt.Fprintf(stderr, string(dump)+"\n")
+						}
+					}()
+
+					// Notify us on Slack
+					if slackChannelId != "test" {
+						notificationText := ""
+
+						if notificationBytes, err := ioutil.ReadFile(filepath.Join(dir, shared.NotificationFilename)); err == nil {
+							notificationText = string(notificationBytes)
+						} else {
+							if os.IsNotExist(err) {
+								fmt.Println("No custom notification text.")
+							} else {
+								fmt.Fprintf(stderr, "WARNING: error while reading custom notification text")
+							}
+						}
+
+						successEmoji := ":white_check_mark:"
+						successString := "Success!"
+						if !jobResults.Success {
+							successEmoji = ":x:"
+							successString = "Failure"
+						}
+
+						_, err := slack.SlackPostMessage(SlackMessageRequest{
+							Channel: slackChannelId,
+							Text:    fmt.Sprintf("%s Branch %s (Commit %s) %s", successEmoji, branchName, hash[0:7], successString),
+							Blocks: []*SlackBlock{
+								TextBlock("*%s Branch %s (Commit %s) %s*", successEmoji, branchName, hash[0:7], successString),
+								TextBlock(notificationText),
+								TextBlock("<%s|View the full results>", BuildUrl(serverUrl, "p", projectName.Encoded(), hash)),
+							},
+						})
+						if err == nil {
+							fmt.Fprintf(stdout, "Successfully posted message to Slack.\n")
+						} else {
+							fmt.Fprintf(stderr, "ERROR posting message to Slack: %v\n", err)
+						}
+					}
+
+					// TODO: Update CI status on GitHub
+
+					fmt.Fprintf(stdout, "Done.\n")
+				}()
+			}
+
+			<-ticker.C
+		}()
 	}
 }
 
