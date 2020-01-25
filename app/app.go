@@ -27,7 +27,10 @@ import (
 )
 
 type Config struct {
-	Script    string
+	// Deprecated!
+	Script string
+
+	Run       []string
 	Artifacts []string
 }
 
@@ -259,20 +262,26 @@ func Main(name, serverUrl, password, slackToken, slackChannelId, repoUrl string)
 						return
 					}
 
-					if config.Script == "" {
-						fmt.Fprintf(stderr, "ERROR: no script was provided\n")
-						return
-					}
-
-					scriptPath := filepath.Join(dir, config.Script)
-					if _, err := os.Stat(scriptPath); os.IsNotExist(err) {
-						fmt.Fprintf(stderr, "ERROR: could not find script named '%v'\n", config.Script)
-						return
-					}
-
 					jobResults := shared.JobResults{
 						BranchName:    branchName,
 						CommitMessage: commit.Message,
+					}
+
+					if len(config.Run) == 0 {
+						fmt.Fprintf(stderr, "WARNING: Run was not provided, falling back to Script\n")
+
+						scriptPath := filepath.Join(dir, config.Script)
+						if _, err := os.Stat(scriptPath); os.IsNotExist(err) {
+							fmt.Fprintf(stderr, "ERROR: could not find script named '%v'\n", config.Script)
+							return
+						}
+
+						config.Run = []string{scriptPath}
+					}
+
+					if config.Run[0] == "" {
+						fmt.Fprintf(stderr, "ERROR: you must provide Run in the benkins.toml\n")
+						return
 					}
 
 					// Run the script
@@ -280,7 +289,7 @@ func Main(name, serverUrl, password, slackToken, slackChannelId, repoUrl string)
 						ctx, cancel := context.WithTimeout(context.Background(), time.Minute*5)
 						defer cancel()
 
-						cmd := exec.CommandContext(ctx, scriptPath)
+						cmd := exec.CommandContext(ctx, config.Run[0], config.Run[1:]...)
 						cmd.Env = append(os.Environ(), // TODO: Environment variables what make sense
 							"BENKINS_COMMIT_HASH="+hash,
 						)
