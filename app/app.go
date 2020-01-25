@@ -396,9 +396,9 @@ func Main(name, serverUrl, password, slackToken, slackChannelId, repoUrl string)
 					fmt.Fprintf(stdout, "Done.\n")
 				}()
 			}
-
-			<-ticker.C
 		}()
+
+		<-ticker.C
 	}
 }
 
