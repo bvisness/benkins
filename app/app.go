@@ -18,9 +18,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/BurntSushi/toml"
 	"github.com/fatih/color"
 	"github.com/frc-2175/benkins/shared"
+	"github.com/pelletier/go-toml"
 	"golang.org/x/crypto/ssh/terminal"
 	"gopkg.in/src-d/go-git.v4"
 	"gopkg.in/src-d/go-git.v4/plumbing"
@@ -223,8 +223,13 @@ func Main(name, serverUrl, password, slackToken, slackChannelId, repoUrl string)
 						return
 					}
 
-					_, dir, cleanup := temporaryCheckout(repoUrl, hash, nil)
+					repo, dir, cleanup := temporaryCheckout(repoUrl, hash, nil)
 					defer cleanup()
+
+					commit, err := repo.CommitObject(branch.Hash())
+					if err != nil {
+						fmt.Fprintf(stderr, "ERROR getting commit info: %v\n", err)
+					}
 
 					var config Config
 
@@ -238,7 +243,7 @@ func Main(name, serverUrl, password, slackToken, slackChannelId, repoUrl string)
 								return
 							}
 
-							_, err = toml.Decode(string(configBytes), &config)
+							err = toml.Unmarshal(configBytes, &config)
 							if err != nil {
 								fmt.Fprintf(stderr, "ERROR reading benkins.toml: %v\n", err)
 								return
@@ -266,7 +271,8 @@ func Main(name, serverUrl, password, slackToken, slackChannelId, repoUrl string)
 					}
 
 					jobResults := shared.JobResults{
-						BranchName: branchName,
+						BranchName:    branchName,
+						CommitMessage: commit.Message,
 					}
 
 					// Run the script

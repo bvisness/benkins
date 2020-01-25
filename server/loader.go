@@ -8,13 +8,14 @@ import (
 	"sort"
 	"time"
 
-	"github.com/BurntSushi/toml"
 	"github.com/frc-2175/benkins/shared"
+	"github.com/pelletier/go-toml"
 )
 
 type Commit struct {
 	Hash       string
 	BranchName string
+	Message    string
 	Time       time.Time
 	Success    bool
 	Filepath   string
@@ -101,7 +102,7 @@ func (l *Loader) Commit(projectName shared.ProjectName, hash string) (Commit, er
 	}
 
 	var results shared.JobResults
-	_, err = toml.Decode(string(resultBytes), &results)
+	err = toml.Unmarshal(resultBytes, &results)
 	if err != nil {
 		return Commit{}, fmt.Errorf("failed to decode %s for %s commit %s: %v", shared.ResultsFilename, projectName.Decoded(), hash, err)
 	}
@@ -119,6 +120,7 @@ func (l *Loader) Commit(projectName shared.ProjectName, hash string) (Commit, er
 	return Commit{
 		Hash:       hash,
 		BranchName: results.BranchName,
+		Message:    results.CommitMessage,
 		Time:       info.ModTime(),
 		Success:    results.Success,
 		Filepath:   filepath.Join(l.BasePath, projectName.Encoded(), hash),

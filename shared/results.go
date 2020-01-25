@@ -1,6 +1,8 @@
 package shared
 
-import "fmt"
+import (
+	"github.com/pelletier/go-toml"
+)
 
 const (
 	ExecutionLogFilename = "benkins-execution-log.txt"
@@ -9,15 +11,13 @@ const (
 )
 
 type JobResults struct {
-	Success    bool
-	BranchName string
+	Success       bool
+	CommitMessage string
+	BranchName    string
 }
 
 func (r JobResults) ToTOML() string {
-	return fmt.Sprintf(""+
-		"Success = %v\n"+
-		"BranchName = \"%s\"\n",
-		r.Success,
-		r.BranchName,
-	)
+	rBytes, _ := toml.Marshal(r)
+
+	return string(rBytes)
 }
