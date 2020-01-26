@@ -3,7 +3,7 @@
         <h2>Commit {{.Hash}}</h2>
         <p>Result: {{if .Success}}Success ✅{{else}}Failure ❌{{end}}</p>
         <h3>Message</h3>
-        <p>{{.Message}}</p>
+        <pre>{{.Message}}</pre>
         <h3>Files</h3>
         <ul>
             {{range $i, $f := .Files}}

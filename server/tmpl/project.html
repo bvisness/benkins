@@ -5,8 +5,8 @@
             {{range .Commits}}
                 <li>
                     {{if .Success}}✅{{else}}❌{{end}}
-                    <a href="{{commitUrl $.projectName .Hash}}">{{short .Hash}}</a>
-                    <span class="ph1">{{.Message}}</span>
+                    <a href="{{commitUrl $.projectName .Hash}}" class="code ph1">{{short .Hash}}</a>
+                    <span class="pr1">{{.Message}}</span>
                     <span class="gray i">{{.Time.Format "Jan 2, 3:04 PM"}}</span>
                 </li>
             {{end}}

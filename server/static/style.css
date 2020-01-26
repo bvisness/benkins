@@ -8,6 +8,10 @@
     padding-top: 0.2em;
 }
 
+.code {
+    font-size: 0.9em;
+}
+
 .ansi .bold {
     font-weight: bold;
 }
