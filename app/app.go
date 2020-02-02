@@ -395,6 +395,7 @@ func Main(name, serverUrl, password, slackToken, slackChannelId, repoUrl string)
 							Text:    fmt.Sprintf("%s Branch %s (Commit %s) %s", successEmoji, branchName, hash[0:7], successString),
 							Blocks: []*SlackBlock{
 								TextBlock("*%s Branch %s (Commit %s) %s*", successEmoji, branchName, hash[0:7], successString),
+								TextBlock("Message: %s", commit.Message),
 								TextBlock(notificationText),
 								TextBlock("<%s|View the full results>", BuildUrl(serverUrl, "p", projectName.Encoded(), hash)),
 							},
